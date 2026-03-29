@@ -425,7 +425,7 @@ const VisualEditor = () => {
                       width: ann.width, height: ann.height,
                       border: `2px solid ${ann.color}`,
                       backgroundColor: `${ann.color}15`,
-                      ringColor: ann.color,
+                      boxShadow: selectedAnnotation === ann.id ? `0 0 0 2px ${ann.color}` : undefined,
                     }}
                     onClick={(e) => {
                       e.stopPropagation();
