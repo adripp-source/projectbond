@@ -11,7 +11,10 @@ import {
   Settings,
   ChevronLeft,
   Zap,
+  LogOut,
 } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
+import { useNavigate } from "react-router-dom";
 
 const navItems = [
   { path: "/home", label: "Home", icon: Home },
