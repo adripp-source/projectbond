@@ -1,8 +1,13 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Globe, Shield, Play, RefreshCw } from "lucide-react";
+import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import ActionItem from "@/components/ui/action-item";
 import ScoreCard from "@/components/ui/score-card";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const qaIssues = [
   {
