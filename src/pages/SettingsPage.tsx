@@ -1,10 +1,131 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Settings, User, Bell, Shield, Globe } from "lucide-react";
+import { Settings, User, Bell, Shield, Globe, Save, Loader2, Code, Users, Blocks, ShieldCheck } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
+
+const userTypeLabels: Record<string, { label: string; icon: any }> = {
+  dev_team: { label: "I have a dev team", icon: Users },
+  developer: { label: "I code myself", icon: Code },
+  nocode: { label: "I use no-code tools", icon: Blocks },
+};
 
 const SettingsPage = () => {
+  const { user } = useAuth();
+  const [displayName, setDisplayName] = useState("");
+  const [email, setEmail] = useState("");
+  const [userType, setUserType] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [mfaEnabled, setMfaEnabled] = useState(false);
+  const [enrollingMfa, setEnrollingMfa] = useState(false);
+  const [qrCode, setQrCode] = useState<string | null>(null);
+  const [verifyCode, setVerifyCode] = useState("");
+  const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!user) return;
+    setEmail(user.email || "");
+
+    Promise.all([
+      supabase.from("profiles").select("display_name, user_type").eq("user_id", user.id).maybeSingle(),
+      supabase.auth.mfa.listFactors(),
+    ]).then(([profileRes, mfaRes]) => {
+      if (profileRes.data) {
+        setDisplayName((profileRes.data as any).display_name || "");
+        setUserType((profileRes.data as any).user_type || "");
+      }
+      if (mfaRes.data) {
+        const verified = mfaRes.data.totp.filter((f: any) => f.status === "verified");
+        setMfaEnabled(verified.length > 0);
+        if (verified.length > 0) setMfaFactorId(verified[0].id);
+      }
+      setLoading(false);
+    });
+  }, [user]);
+
+  const handleSave = async () => {
+    if (!user) return;
+    setSaving(true);
+    try {
+      await supabase
+        .from("profiles")
+        .update({ display_name: displayName.trim(), user_type: userType } as any)
+        .eq("user_id", user.id);
+      toast.success("Settings saved!");
+    } catch (e: any) {
+      toast.error(e.message || "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleEnrollMfa = async () => {
+    setEnrollingMfa(true);
+    try {
+      const { data, error } = await supabase.auth.mfa.enroll({
+        factorType: "totp",
+        friendlyName: "Authenticator App",
+      });
+      if (error) throw error;
+      if (data) {
+        setQrCode(data.totp.qr_code);
+        setMfaFactorId(data.id);
+      }
+    } catch (e: any) {
+      toast.error(e.message || "MFA enrollment failed");
+      setEnrollingMfa(false);
+    }
+  };
+
+  const handleVerifyMfa = async () => {
+    if (!mfaFactorId || !verifyCode) return;
+    try {
+      const { data: challenge, error: challengeErr } = await supabase.auth.mfa.challenge({ factorId: mfaFactorId });
+      if (challengeErr) throw challengeErr;
+
+      const { error: verifyErr } = await supabase.auth.mfa.verify({
+        factorId: mfaFactorId,
+        challengeId: challenge.id,
+        code: verifyCode,
+      });
+      if (verifyErr) throw verifyErr;
+
+      setMfaEnabled(true);
+      setQrCode(null);
+      setEnrollingMfa(false);
+      setVerifyCode("");
+      toast.success("2FA enabled successfully!");
+    } catch (e: any) {
+      toast.error(e.message || "Verification failed");
+    }
+  };
+
+  const handleUnenrollMfa = async () => {
+    if (!mfaFactorId) return;
+    try {
+      const { error } = await supabase.auth.mfa.unenroll({ factorId: mfaFactorId });
+      if (error) throw error;
+      setMfaEnabled(false);
+      setMfaFactorId(null);
+      toast.success("2FA disabled");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to disable 2FA");
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 max-w-3xl">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
@@ -26,19 +147,119 @@ const SettingsPage = () => {
           <div className="grid grid-cols-2 gap-4 max-w-lg">
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Name</label>
-              <Input defaultValue="Alex Chen" className="bg-secondary border-border text-foreground" />
+              <Input
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                className="bg-secondary border-border text-foreground"
+              />
             </div>
             <div>
               <label className="text-xs text-muted-foreground mb-1 block">Email</label>
-              <Input defaultValue="alex@acme.com" className="bg-secondary border-border text-foreground" />
+              <Input
+                value={email}
+                disabled
+                className="bg-secondary border-border text-foreground opacity-60"
+              />
             </div>
           </div>
+        </div>
+
+        {/* User Type Preference */}
+        <div className="bg-card border border-border rounded-lg p-6 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Globe className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Build Preference</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            This affects how fixes and instructions are generated throughout the app.
+          </p>
+          <div className="flex gap-2">
+            {Object.entries(userTypeLabels).map(([key, { label, icon: Icon }]) => (
+              <button
+                key={key}
+                onClick={() => setUserType(key)}
+                className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition-all ${
+                  userType === key
+                    ? "border-primary bg-primary/10 text-foreground"
+                    : "border-border text-muted-foreground hover:border-primary/50"
+                }`}
+              >
+                <Icon className="w-4 h-4" />
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* 2FA / MFA */}
+        <div className="bg-card border border-border rounded-lg p-6 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <ShieldCheck className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Two-Factor Authentication (2FA)</h3>
+          </div>
+
+          {mfaEnabled ? (
+            <div className="flex items-center justify-between max-w-lg">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-success" />
+                <span className="text-sm text-foreground">2FA is enabled</span>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleUnenrollMfa}
+                className="border-destructive text-destructive hover:bg-destructive/10"
+              >
+                Disable 2FA
+              </Button>
+            </div>
+          ) : qrCode ? (
+            <div className="max-w-sm">
+              <p className="text-sm text-muted-foreground mb-3">
+                Scan this QR code with your authenticator app, then enter the 6-digit code:
+              </p>
+              <div className="bg-white rounded-lg p-4 mb-4 w-fit">
+                <img src={qrCode} alt="MFA QR Code" className="w-48 h-48" />
+              </div>
+              <div className="flex gap-2">
+                <Input
+                  value={verifyCode}
+                  onChange={(e) => setVerifyCode(e.target.value)}
+                  placeholder="Enter 6-digit code"
+                  maxLength={6}
+                  className="bg-secondary border-border text-foreground max-w-[180px] font-mono"
+                />
+                <Button
+                  onClick={handleVerifyMfa}
+                  disabled={verifyCode.length !== 6}
+                  className="bg-gradient-primary text-primary-foreground"
+                >
+                  Verify
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between max-w-lg">
+              <div>
+                <p className="text-sm text-foreground">Authenticator App (TOTP)</p>
+                <p className="text-xs text-muted-foreground">Secure your account with a 6-digit code</p>
+              </div>
+              <Button
+                size="sm"
+                onClick={handleEnrollMfa}
+                disabled={enrollingMfa}
+                className="bg-gradient-primary text-primary-foreground"
+              >
+                {enrollingMfa ? <Loader2 className="w-4 h-4 animate-spin" /> : "Enable 2FA"}
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Scan Settings */}
         <div className="bg-card border border-border rounded-lg p-6 shadow-card">
           <div className="flex items-center gap-2 mb-4">
-            <Globe className="w-4 h-4 text-muted-foreground" />
+            <Shield className="w-4 h-4 text-muted-foreground" />
             <h3 className="text-sm font-semibold text-foreground">Scan Configuration</h3>
           </div>
           <div className="space-y-4">
@@ -53,13 +274,6 @@ const SettingsPage = () => {
               <div>
                 <p className="text-sm text-foreground">Security Scans</p>
                 <p className="text-xs text-muted-foreground">OWASP-based safe security testing</p>
-              </div>
-              <Switch defaultChecked />
-            </div>
-            <div className="flex items-center justify-between max-w-lg">
-              <div>
-                <p className="text-sm text-foreground">Media Monitoring</p>
-                <p className="text-xs text-muted-foreground">Track brand sentiment continuously</p>
               </div>
               <Switch defaultChecked />
             </div>
@@ -90,7 +304,14 @@ const SettingsPage = () => {
           </div>
         </div>
 
-        <Button className="bg-gradient-primary text-primary-foreground hover:opacity-90">Save Settings</Button>
+        <Button
+          onClick={handleSave}
+          disabled={saving}
+          className="bg-gradient-primary text-primary-foreground hover:opacity-90"
+        >
+          {saving ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : <Save className="w-4 h-4 mr-2" />}
+          Save Settings
+        </Button>
       </div>
     </div>
   );

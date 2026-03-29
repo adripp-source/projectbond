@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import { Zap, Mail, Lock, Eye, EyeOff, Loader2, User } from "lucide-react";
@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
 import { lovable } from "@/integrations/lovable";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
 const Auth = () => {
@@ -16,6 +17,26 @@ const Auth = () => {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
+  const { session, loading: authLoading } = useAuth();
+
+  // Redirect if already logged in
+  useEffect(() => {
+    if (!authLoading && session) {
+      // Check if onboarding is completed
+      supabase
+        .from("profiles")
+        .select("onboarding_completed")
+        .eq("user_id", session.user.id)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (data?.onboarding_completed) {
+            navigate("/home", { replace: true });
+          } else {
+            navigate("/onboarding", { replace: true });
+          }
+        });
+    }
+  }, [session, authLoading, navigate]);
 
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,7 +46,7 @@ const Auth = () => {
       if (isLogin) {
         const { error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
-        navigate("/home");
+        // Auth state change will trigger redirect via useEffect
       } else {
         const { error } = await supabase.auth.signUp({
           email,
@@ -60,6 +81,14 @@ const Auth = () => {
       setLoading(false);
     }
   };
+
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-background flex items-center justify-center">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-background flex items-center justify-center relative overflow-hidden">
