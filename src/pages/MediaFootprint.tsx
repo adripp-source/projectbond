@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Newspaper, ThumbsUp, ThumbsDown, Minus, Lightbulb, Loader2, Users } from "lucide-react";
+import { Newspaper, ThumbsUp, ThumbsDown, Minus, Lightbulb, Loader2, Users, Plus, Trash2, Globe } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,6 +18,12 @@ interface MediaAnalysis {
   sentiment_over_time: Array<{ period: string; positive: number; neutral: number; negative: number }>;
 }
 
+interface WebsiteRow {
+  id: string;
+  url: string;
+  name: string | null;
+}
+
 const MediaFootprint = () => {
   const { user } = useAuth();
   const [analysis, setAnalysis] = useState<MediaAnalysis | null>(null);
@@ -27,16 +33,23 @@ const MediaFootprint = () => {
   const [twitter, setTwitter] = useState("");
   const [linkedin, setLinkedin] = useState("");
   const [instagram, setInstagram] = useState("");
+  const [facebook, setFacebook] = useState("");
+  const [youtube, setYoutube] = useState("");
+  const [tiktok, setTiktok] = useState("");
+  const [reddit, setReddit] = useState("");
+  const [websites, setWebsites] = useState<WebsiteRow[]>([]);
+  const [newUrl, setNewUrl] = useState("");
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     if (!user) return;
-    // Load existing analysis and branding
     Promise.all([
       supabase.from("scans").select("media_analysis").eq("user_id", user.id)
         .not("media_analysis", "is", null)
         .order("created_at", { ascending: false }).limit(1).single(),
       supabase.from("branding").select("*").eq("user_id", user.id).maybeSingle(),
-    ]).then(([scanRes, brandingRes]) => {
+      supabase.from("websites").select("id, url, name").eq("user_id", user.id).eq("section", "media"),
+    ]).then(([scanRes, brandingRes, websiteRes]) => {
       if (scanRes.data?.media_analysis) {
         setAnalysis(scanRes.data.media_analysis as unknown as MediaAnalysis);
       }
@@ -45,10 +58,37 @@ const MediaFootprint = () => {
         setTwitter(brandingRes.data.social_twitter || "");
         setLinkedin(brandingRes.data.social_linkedin || "");
         setInstagram(brandingRes.data.social_instagram || "");
+        setFacebook(brandingRes.data.social_facebook || "");
       }
+      if (websiteRes.data) setWebsites(websiteRes.data);
       setLoading(false);
     });
   }, [user]);
+
+  const addWebsite = async () => {
+    if (!newUrl.trim() || !user) return;
+    setAdding(true);
+    try {
+      const { data, error } = await supabase
+        .from("websites")
+        .insert({ user_id: user.id, url: newUrl.trim(), section: "media" })
+        .select("id, url, name")
+        .single();
+      if (error) throw error;
+      if (data) setWebsites(prev => [...prev, data]);
+      setNewUrl("");
+      toast.success("URL added");
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeWebsite = async (id: string) => {
+    await supabase.from("websites").delete().eq("id", id);
+    setWebsites(prev => prev.filter(w => w.id !== id));
+  };
 
   const runAnalysis = async () => {
     if (!companyName.trim()) {
@@ -57,7 +97,6 @@ const MediaFootprint = () => {
     }
     setAnalyzing(true);
     try {
-      // Save socials to branding
       if (user) {
         await supabase.from("branding").upsert({
           user_id: user.id,
@@ -65,6 +104,7 @@ const MediaFootprint = () => {
           social_twitter: twitter.trim() || null,
           social_linkedin: linkedin.trim() || null,
           social_instagram: instagram.trim() || null,
+          social_facebook: facebook.trim() || null,
         }, { onConflict: "user_id" });
       }
 
@@ -72,6 +112,7 @@ const MediaFootprint = () => {
         twitter: twitter.trim() || undefined,
         linkedin: linkedin.trim() || undefined,
         instagram: instagram.trim() || undefined,
+        facebook: facebook.trim() || undefined,
       });
       setAnalysis(result);
       toast.success("Media analysis complete!");
@@ -104,40 +145,51 @@ const MediaFootprint = () => {
         </div>
       </motion.div>
 
+      {/* Website URLs for media tracking */}
+      <div className="bg-card border border-border rounded-lg p-5 mb-6 shadow-card">
+        <div className="flex items-center gap-2 mb-3">
+          <Globe className="w-4 h-4 text-muted-foreground" />
+          <h3 className="text-sm font-semibold text-foreground">Tracked URLs</h3>
+        </div>
+        <div className="flex gap-2 mb-3">
+          <Input
+            placeholder="https://yourwebsite.com"
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+            className="bg-secondary border-border text-foreground text-sm"
+          />
+          <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" className="bg-gradient-primary text-primary-foreground">
+            {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          </Button>
+        </div>
+        {websites.length > 0 && (
+          <div className="space-y-1">
+            {websites.map(w => (
+              <div key={w.id} className="flex items-center justify-between px-3 py-1.5 bg-secondary rounded text-sm">
+                <span className="text-foreground font-mono text-xs">{w.url}</span>
+                <button onClick={() => removeWebsite(w.id)} className="text-muted-foreground hover:text-destructive">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Input Section */}
       <div className="bg-card border border-border rounded-lg p-5 mb-6 shadow-card">
         <h3 className="text-sm font-semibold text-foreground mb-3">Company & Social Handles</h3>
         <div className="grid grid-cols-2 gap-3 mb-3">
-          <Input
-            placeholder="Company name"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            className="bg-secondary border-border text-foreground"
-          />
-          <Input
-            placeholder="@twitter handle"
-            value={twitter}
-            onChange={(e) => setTwitter(e.target.value)}
-            className="bg-secondary border-border text-foreground"
-          />
-          <Input
-            placeholder="LinkedIn company page"
-            value={linkedin}
-            onChange={(e) => setLinkedin(e.target.value)}
-            className="bg-secondary border-border text-foreground"
-          />
-          <Input
-            placeholder="@instagram handle"
-            value={instagram}
-            onChange={(e) => setInstagram(e.target.value)}
-            className="bg-secondary border-border text-foreground"
-          />
+          <Input placeholder="Company name" value={companyName} onChange={(e) => setCompanyName(e.target.value)} className="bg-secondary border-border text-foreground" />
+          <Input placeholder="@twitter / X handle" value={twitter} onChange={(e) => setTwitter(e.target.value)} className="bg-secondary border-border text-foreground" />
+          <Input placeholder="LinkedIn company page" value={linkedin} onChange={(e) => setLinkedin(e.target.value)} className="bg-secondary border-border text-foreground" />
+          <Input placeholder="@instagram handle" value={instagram} onChange={(e) => setInstagram(e.target.value)} className="bg-secondary border-border text-foreground" />
+          <Input placeholder="Facebook page" value={facebook} onChange={(e) => setFacebook(e.target.value)} className="bg-secondary border-border text-foreground" />
+          <Input placeholder="YouTube channel" value={youtube} onChange={(e) => setYoutube(e.target.value)} className="bg-secondary border-border text-foreground" />
+          <Input placeholder="TikTok handle" value={tiktok} onChange={(e) => setTiktok(e.target.value)} className="bg-secondary border-border text-foreground" />
+          <Input placeholder="Reddit subreddit / profile" value={reddit} onChange={(e) => setReddit(e.target.value)} className="bg-secondary border-border text-foreground" />
         </div>
-        <Button
-          onClick={runAnalysis}
-          disabled={analyzing || !companyName.trim()}
-          className="bg-gradient-primary text-primary-foreground hover:opacity-90"
-        >
+        <Button onClick={runAnalysis} disabled={analyzing || !companyName.trim()} className="bg-gradient-primary text-primary-foreground hover:opacity-90">
           {analyzing ? (
             <span className="flex items-center gap-2"><Loader2 className="w-4 h-4 animate-spin" /> Analyzing...</span>
           ) : (
