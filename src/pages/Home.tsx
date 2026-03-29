@@ -1,185 +1,233 @@
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { Shield, HeartPulse, MessageCircle, TrendingUp, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Shield, HeartPulse, MessageCircle, TrendingUp, Loader2, RefreshCw } from "lucide-react";
+import { Link } from "react-router-dom";
 import ScoreCard from "@/components/ui/score-card";
 import ActionItem from "@/components/ui/action-item";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { api } from "@/lib/api";
+import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
-const trendData = [
-  { day: "Mon", issues: 14, risks: 8, sentiment: 62 },
-  { day: "Tue", issues: 12, risks: 7, sentiment: 65 },
-  { day: "Wed", issues: 15, risks: 9, sentiment: 60 },
-  { day: "Thu", issues: 11, risks: 6, sentiment: 68 },
-  { day: "Fri", issues: 9, risks: 5, sentiment: 72 },
-  { day: "Sat", issues: 8, risks: 4, sentiment: 75 },
-  { day: "Sun", issues: 7, risks: 4, sentiment: 78 },
-];
+interface ScanData {
+  id: string;
+  url: string;
+  health_score: number | null;
+  security_score: number | null;
+  sentiment_score: number | null;
+  ai_summary: string | null;
+  created_at: string;
+  status: string;
+}
 
-const topActions = [
-  {
-    title: "Checkout button non-functional on mobile",
-    description: "The primary CTA on the checkout page doesn't respond to tap events on iOS Safari, blocking 23% of mobile conversions.",
-    priority: "critical" as const,
-    impact: "High revenue risk",
-    location: "/checkout",
-    fixTypes: ["code" as const, "no-code" as const],
-  },
-  {
-    title: "Missing CSRF token on login form",
-    description: "Login form lacks CSRF protection, exposing the authentication flow to cross-site request forgery attacks.",
-    priority: "critical" as const,
-    impact: "Security vulnerability",
-    location: "/login",
-    fixTypes: ["dev" as const, "code" as const],
-  },
-  {
-    title: "Slow page load on pricing page",
-    description: "The pricing page takes 4.2s to load due to unoptimized images and render-blocking scripts.",
-    priority: "warning" as const,
-    impact: "Conversion drop-off",
-    location: "/pricing",
-    fixTypes: ["dev" as const, "visual" as const],
-  },
-];
+interface IssueData {
+  id: string;
+  title: string;
+  description: string;
+  category: string;
+  priority: string;
+  impact: string | null;
+  location: string | null;
+  fix_dev: string | null;
+  fix_code: string | null;
+  fix_nocode: string | null;
+  fix_content: string | null;
+  fix_visual: string | null;
+  status: string;
+}
 
 const Home = () => {
+  const { user } = useAuth();
+  const [scan, setScan] = useState<ScanData | null>(null);
+  const [issues, setIssues] = useState<IssueData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [rescanning, setRescanning] = useState(false);
+
+  const loadData = async () => {
+    if (!user) return;
+    setLoading(true);
+
+    const { data: latestScan } = await supabase
+      .from("scans")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .single();
+
+    if (latestScan) {
+      setScan(latestScan);
+      const { data: scanIssues } = await supabase
+        .from("scan_issues")
+        .select("*")
+        .eq("scan_id", latestScan.id)
+        .order("created_at", { ascending: true });
+
+      if (scanIssues) setIssues(scanIssues);
+    }
+    setLoading(false);
+  };
+
+  useEffect(() => { loadData(); }, [user]);
+
+  const handleRescan = async () => {
+    if (!scan?.url) return;
+    setRescanning(true);
+    try {
+      await api.analyzeWebsite(scan.url);
+      toast.success("Rescan complete!");
+      await loadData();
+    } catch (e: any) {
+      toast.error(e.message || "Rescan failed");
+    } finally {
+      setRescanning(false);
+    }
+  };
+
+  const criticalIssues = issues.filter(i => i.priority === "critical");
+  const warningIssues = issues.filter(i => i.priority === "warning");
+  const lowIssues = issues.filter(i => i.priority === "low");
+  const topActions = [...criticalIssues, ...warningIssues, ...lowIssues].slice(0, 5);
+
+  const getFixTypes = (issue: IssueData) => {
+    const types: Array<"dev" | "code" | "no-code" | "content" | "visual"> = [];
+    if (issue.fix_dev) types.push("dev");
+    if (issue.fix_code) types.push("code");
+    if (issue.fix_nocode) types.push("no-code");
+    if (issue.fix_content) types.push("content");
+    if (issue.fix_visual) types.push("visual");
+    if (types.length === 0) {
+      if (issue.category === "security") types.push("dev");
+      else if (issue.category === "content") types.push("content");
+      else types.push("code");
+    }
+    return types;
+  };
+
+  if (loading) {
+    return (
+      <div className="p-8 flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="w-6 h-6 animate-spin text-primary" />
+      </div>
+    );
+  }
+
+  if (!scan) {
+    return (
+      <div className="p-8 max-w-2xl">
+        <div className="bg-card border border-border rounded-lg p-8 text-center shadow-card">
+          <HeartPulse className="w-10 h-10 text-muted-foreground mx-auto mb-4" />
+          <h2 className="text-lg font-semibold text-foreground mb-2">No scans yet</h2>
+          <p className="text-sm text-muted-foreground mb-4">
+            Add a website to start your first analysis.
+          </p>
+          <Link to="/onboarding">
+            <Button className="bg-gradient-primary text-primary-foreground">Add Website</Button>
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-8 max-w-6xl">
-      {/* Header */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">Last scan: 12 minutes ago</p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground tracking-tight">Dashboard</h1>
+            <p className="text-sm text-muted-foreground mt-1">
+              Analyzing: <span className="text-foreground font-mono">{scan.url}</span>
+              {" · "}Last scan: {new Date(scan.created_at).toLocaleString()}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={handleRescan}
+            disabled={rescanning}
+            className="border-border text-foreground hover:bg-secondary"
+          >
+            {rescanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
+            Rescan
+          </Button>
+        </div>
       </motion.div>
 
       {/* Scores */}
       <div className="grid grid-cols-3 gap-4 mb-8">
-        <ScoreCard
-          label="Website Health"
-          score={72}
-          icon={HeartPulse}
-          trend="up"
-          trendValue="4pts"
-        />
-        <ScoreCard
-          label="Security Risk"
-          score={58}
-          icon={Shield}
-          trend="down"
-          trendValue="2pts"
-        />
-        <ScoreCard
-          label="Customer Sentiment"
-          score={78}
-          icon={MessageCircle}
-          trend="up"
-          trendValue="6pts"
-        />
+        <ScoreCard label="Website Health" score={scan.health_score ?? 0} icon={HeartPulse} />
+        <ScoreCard label="Security Risk" score={scan.security_score ?? 0} icon={Shield} />
+        <ScoreCard label="Customer Sentiment" score={scan.sentiment_score ?? 0} icon={MessageCircle} />
       </div>
 
       {/* AI Summary */}
-      <motion.div
-        initial={{ opacity: 0, y: 10 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.15 }}
-        className="bg-card border border-border rounded-lg p-5 mb-8 shadow-card"
-      >
-        <div className="flex items-center gap-2 mb-3">
-          <div className="w-6 h-6 rounded-md bg-gradient-primary flex items-center justify-center">
-            <TrendingUp className="w-3.5 h-3.5 text-primary-foreground" />
+      {scan.ai_summary && (
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+          className="bg-card border border-border rounded-lg p-5 mb-8 shadow-card"
+        >
+          <div className="flex items-center gap-2 mb-3">
+            <div className="w-6 h-6 rounded-md bg-gradient-primary flex items-center justify-center">
+              <TrendingUp className="w-3.5 h-3.5 text-primary-foreground" />
+            </div>
+            <h3 className="text-sm font-semibold text-foreground">AI Summary</h3>
           </div>
-          <h3 className="text-sm font-semibold text-foreground">AI Summary</h3>
+          <p className="text-sm text-secondary-foreground leading-relaxed">{scan.ai_summary}</p>
+        </motion.div>
+      )}
+
+      {/* Issue stats */}
+      <div className="grid grid-cols-3 gap-4 mb-8">
+        <div className="bg-card border border-border rounded-lg p-4 shadow-card">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full bg-destructive" />
+            <span className="text-sm text-muted-foreground">Critical</span>
+          </div>
+          <span className="text-2xl font-bold text-destructive">{criticalIssues.length}</span>
         </div>
-        <p className="text-sm text-secondary-foreground leading-relaxed">
-          Your website has <span className="text-destructive font-medium">7 critical issues</span>,{" "}
-          <span className="text-warning font-medium">3 security risks</span>, and{" "}
-          <span className="text-primary font-medium">5 customer concerns</span>. Fixing the{" "}
-          <span className="text-foreground font-medium">checkout flow</span>,{" "}
-          <span className="text-foreground font-medium">login security</span>, and{" "}
-          <span className="text-foreground font-medium">page speed</span> will have the highest impact on revenue and trust.
-        </p>
-      </motion.div>
-
-      {/* Charts */}
-      <div className="grid grid-cols-2 gap-4 mb-8">
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="bg-card border border-border rounded-lg p-5 shadow-card"
-        >
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">Issue & Risk Trends</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="issueGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="hsl(217, 91%, 60%)" stopOpacity={0} />
-                </linearGradient>
-                <linearGradient id="riskGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="hsl(0, 72%, 51%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" tick={{ fill: "hsl(215, 14%, 50%)", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "hsl(215, 14%, 50%)", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <Tooltip
-                contentStyle={{
-                  background: "hsl(220, 13%, 9%)",
-                  border: "1px solid hsl(220, 13%, 16%)",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                }}
-              />
-              <Area type="monotone" dataKey="issues" stroke="hsl(217, 91%, 60%)" fill="url(#issueGrad)" strokeWidth={2} />
-              <Area type="monotone" dataKey="risks" stroke="hsl(0, 72%, 51%)" fill="url(#riskGrad)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </motion.div>
-
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.25 }}
-          className="bg-card border border-border rounded-lg p-5 shadow-card"
-        >
-          <h3 className="text-sm font-medium text-muted-foreground mb-4">Sentiment Trend</h3>
-          <ResponsiveContainer width="100%" height={180}>
-            <AreaChart data={trendData}>
-              <defs>
-                <linearGradient id="sentGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="0%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0.3} />
-                  <stop offset="100%" stopColor="hsl(142, 71%, 45%)" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <XAxis dataKey="day" tick={{ fill: "hsl(215, 14%, 50%)", fontSize: 11 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "hsl(215, 14%, 50%)", fontSize: 11 }} axisLine={false} tickLine={false} domain={[50, 100]} />
-              <Tooltip
-                contentStyle={{
-                  background: "hsl(220, 13%, 9%)",
-                  border: "1px solid hsl(220, 13%, 16%)",
-                  borderRadius: "6px",
-                  fontSize: "12px",
-                }}
-              />
-              <Area type="monotone" dataKey="sentiment" stroke="hsl(142, 71%, 45%)" fill="url(#sentGrad)" strokeWidth={2} />
-            </AreaChart>
-          </ResponsiveContainer>
-        </motion.div>
+        <div className="bg-card border border-border rounded-lg p-4 shadow-card">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full bg-warning" />
+            <span className="text-sm text-muted-foreground">Warnings</span>
+          </div>
+          <span className="text-2xl font-bold text-warning">{warningIssues.length}</span>
+        </div>
+        <div className="bg-card border border-border rounded-lg p-4 shadow-card">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full bg-success" />
+            <span className="text-sm text-muted-foreground">Low Priority</span>
+          </div>
+          <span className="text-2xl font-bold text-success">{lowIssues.length}</span>
+        </div>
       </div>
 
       {/* Top Actions */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
-        <div className="flex items-center justify-between mb-4">
-          <h3 className="text-sm font-semibold text-foreground">Priority Actions</h3>
-          <a href="/actions" className="text-xs text-primary hover:underline">
-            View all →
-          </a>
-        </div>
-        <div className="space-y-2">
-          {topActions.map((action, i) => (
-            <ActionItem key={i} {...action} index={i} />
-          ))}
-        </div>
-      </motion.div>
+      {topActions.length > 0 && (
+        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}>
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="text-sm font-semibold text-foreground">Priority Actions</h3>
+            <Link to="/actions" className="text-xs text-primary hover:underline">View all →</Link>
+          </div>
+          <div className="space-y-2">
+            {topActions.map((issue, i) => (
+              <ActionItem
+                key={issue.id}
+                title={issue.title}
+                description={issue.description}
+                priority={issue.priority as any}
+                impact={issue.impact || ""}
+                location={issue.location || ""}
+                fixTypes={getFixTypes(issue)}
+                index={i}
+              />
+            ))}
+          </div>
+        </motion.div>
+      )}
     </div>
   );
 };
