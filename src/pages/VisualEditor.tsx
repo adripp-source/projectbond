@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  Paintbrush, MousePointer2, Move, Type, Square, Code, FileText,
-  Plus, Loader2, Trash2, Globe, X, MessageSquare, Undo2, Download
+  Paintbrush, MousePointer2, Type, Square, Code, FileText,
+  Plus, Loader2, Trash2, Globe, X, MessageSquare, Undo2, Download,
+  Hand, Crosshair, PlusCircle, Highlighter
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,15 +12,19 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 
-const toolConfig = [
-  { icon: MousePointer2, label: "Select", cursor: "crosshair" },
-  { icon: Type, label: "Text", cursor: "text" },
-  { icon: Square, label: "Box", cursor: "crosshair" },
+type ToolType = "browse" | "select" | "highlight" | "text" | "box";
+
+const toolConfig: { icon: any; label: string; tool: ToolType; tip: string }[] = [
+  { icon: Hand, label: "Browse", tool: "browse", tip: "Interact with the page normally" },
+  { icon: Crosshair, label: "Smart Select", tool: "select", tip: "Click to auto-detect a section" },
+  { icon: Highlighter, label: "Highlight", tool: "highlight", tip: "Draw to highlight an area" },
+  { icon: Type, label: "Text", tool: "text", tip: "Click to place a text note" },
+  { icon: Square, label: "Box", tool: "box", tip: "Draw a new section box" },
 ];
 
 interface Annotation {
   id: string;
-  type: "select" | "text" | "box";
+  type: "select" | "text" | "box" | "highlight";
   x: number;
   y: number;
   width: number;
@@ -27,12 +32,20 @@ interface Annotation {
   text?: string;
   note?: string;
   color: string;
+  guessedElement?: string;
 }
 
 interface WebsiteRow {
   id: string;
   url: string;
   name: string | null;
+}
+
+interface ContextMenu {
+  x: number;
+  y: number;
+  canvasX: number;
+  canvasY: number;
 }
 
 const COLORS = [
@@ -43,11 +56,39 @@ const COLORS = [
   "hsl(280, 70%, 55%)",
 ];
 
+// Common page section sizes for smart-select guessing
+const SECTION_GUESSES = [
+  { name: "Navigation Bar", y: [0, 80], height: 70 },
+  { name: "Hero Section", y: [50, 600], height: 500 },
+  { name: "Content Section", y: [400, 1200], height: 400 },
+  { name: "Sidebar", x: [0, 300], width: 280 },
+  { name: "Footer", y: [600, 5000], height: 200 },
+  { name: "CTA Button Area", y: [200, 800], height: 100 },
+  { name: "Form Section", y: [200, 1500], height: 300 },
+  { name: "Card/Feature Block", y: [300, 1500], height: 250 },
+];
+
+function guessSection(clickY: number, clickX: number, containerW: number, containerH: number) {
+  const relY = clickY;
+  const relX = clickX;
+
+  // Top area = nav
+  if (relY < 80) return { name: "Navigation Bar", x: 0, y: 0, w: containerW, h: 70 };
+  // Bottom area = footer
+  if (relY > containerH - 200) return { name: "Footer", x: 0, y: containerH - 180, w: containerW, h: 180 };
+  // Left edge = sidebar
+  if (relX < 300 && containerW > 800) return { name: "Sidebar", x: 0, y: 70, w: 280, h: containerH - 250 };
+  // Top-center = hero
+  if (relY < 500) return { name: "Hero Section", x: 40, y: 70, w: containerW - 80, h: 420 };
+  // Mid page = content
+  return { name: "Content Section", x: 40, y: Math.max(relY - 150, 70), w: containerW - 80, h: 350 };
+}
+
 const VisualEditor = () => {
   const { user } = useAuth();
   const [activeUrl, setActiveUrl] = useState("");
   const [urlInput, setUrlInput] = useState("");
-  const [activeTool, setActiveTool] = useState("Select");
+  const [activeTool, setActiveTool] = useState<ToolType>("browse");
   const [websites, setWebsites] = useState<WebsiteRow[]>([]);
   const [newUrl, setNewUrl] = useState("");
   const [adding, setAdding] = useState(false);
@@ -62,8 +103,11 @@ const VisualEditor = () => {
   const [generating, setGenerating] = useState(false);
   const [generatedOutput, setGeneratedOutput] = useState<string | null>(null);
   const [showOutput, setShowOutput] = useState(false);
+  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
   const colorIndex = useRef(0);
+
+  const overlayActive = activeTool !== "browse";
 
   useEffect(() => {
     if (!user) return;
@@ -117,6 +161,7 @@ const VisualEditor = () => {
       setActiveUrl(urlInput.trim());
       setAnnotations([]);
       setGeneratedOutput(null);
+      setContextMenu(null);
     }
   };
 
@@ -126,33 +171,98 @@ const VisualEditor = () => {
     return c;
   };
 
-  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
-    if (activeTool === "Select" || activeTool === "Box") {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      setIsDrawing(true);
-      setDrawStart({ x, y });
-      setCurrentDraw({ x, y, w: 0, h: 0 });
-    } else if (activeTool === "Text") {
-      const rect = canvasRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      const x = e.clientX - rect.left;
-      const y = e.clientY - rect.top;
-      const newAnn: Annotation = {
-        id: crypto.randomUUID(),
-        type: "text",
-        x, y,
-        width: 200, height: 40,
-        text: "Edit this text",
-        color: getNextColor(),
-      };
-      setAnnotations(prev => [...prev, newAnn]);
-      setSelectedAnnotation(newAnn.id);
-      setEditingText("Edit this text");
+  const addAnnotation = (ann: Annotation) => {
+    setAnnotations(prev => [...prev, ann]);
+    setSelectedAnnotation(ann.id);
+    setEditingNote(ann.note || "");
+    setEditingText(ann.text || "");
+    setContextMenu(null);
+  };
+
+  // Smart Select click — guess the section
+  const handleSmartClick = (clickX: number, clickY: number) => {
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const guess = guessSection(clickY, clickX, rect.width, rect.height);
+    const color = getNextColor();
+    addAnnotation({
+      id: crypto.randomUUID(),
+      type: "select",
+      x: guess.x,
+      y: guess.y,
+      width: guess.w,
+      height: guess.h,
+      note: "",
+      color,
+      guessedElement: guess.name,
+    });
+    toast.success(`Auto-detected: ${guess.name}`, { description: "Add a note describing what to change" });
+  };
+
+  // Context menu quick actions
+  const handleContextAction = (action: string) => {
+    if (!contextMenu) return;
+    const color = getNextColor();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    const cw = rect?.width || 800;
+
+    switch (action) {
+      case "add_box":
+        addAnnotation({
+          id: crypto.randomUUID(), type: "box",
+          x: contextMenu.canvasX - 100, y: contextMenu.canvasY - 60,
+          width: 200, height: 120, note: "New section", color,
+        });
+        break;
+      case "add_text":
+        addAnnotation({
+          id: crypto.randomUUID(), type: "text",
+          x: contextMenu.canvasX - 80, y: contextMenu.canvasY - 20,
+          width: 200, height: 40, text: "Edit this text", color,
+        });
+        break;
+      case "highlight":
+        addAnnotation({
+          id: crypto.randomUUID(), type: "highlight",
+          x: contextMenu.canvasX - 80, y: contextMenu.canvasY - 30,
+          width: 160, height: 60, note: "Change this", color,
+        });
+        break;
+      case "smart_select":
+        handleSmartClick(contextMenu.canvasX, contextMenu.canvasY);
+        break;
     }
-  }, [activeTool]);
+    setContextMenu(null);
+  };
+
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    if (!overlayActive) return;
+    setContextMenu(null);
+
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+
+    if (activeTool === "select") {
+      handleSmartClick(x, y);
+      return;
+    }
+
+    if (activeTool === "text") {
+      addAnnotation({
+        id: crypto.randomUUID(), type: "text",
+        x, y, width: 200, height: 40,
+        text: "Edit this text", color: getNextColor(),
+      });
+      return;
+    }
+
+    // highlight or box → draw
+    setIsDrawing(true);
+    setDrawStart({ x, y });
+    setCurrentDraw({ x, y, w: 0, h: 0 });
+  }, [activeTool, overlayActive]);
 
   const handleCanvasMouseMove = useCallback((e: React.MouseEvent) => {
     if (!isDrawing || !drawStart) return;
@@ -174,24 +284,39 @@ const VisualEditor = () => {
       return;
     }
     if (currentDraw.w > 10 && currentDraw.h > 10) {
-      const newAnn: Annotation = {
+      addAnnotation({
         id: crypto.randomUUID(),
-        type: activeTool === "Box" ? "box" : "select",
-        x: currentDraw.x,
-        y: currentDraw.y,
-        width: currentDraw.w,
-        height: currentDraw.h,
-        note: "",
-        color: getNextColor(),
-      };
-      setAnnotations(prev => [...prev, newAnn]);
-      setSelectedAnnotation(newAnn.id);
-      setEditingNote("");
+        type: activeTool === "box" ? "box" : "highlight",
+        x: currentDraw.x, y: currentDraw.y,
+        width: currentDraw.w, height: currentDraw.h,
+        note: "", color: getNextColor(),
+      });
     }
     setIsDrawing(false);
     setDrawStart(null);
     setCurrentDraw(null);
   }, [isDrawing, currentDraw, activeTool]);
+
+  const handleRightClick = useCallback((e: React.MouseEvent) => {
+    if (!overlayActive) return;
+    e.preventDefault();
+    const rect = canvasRef.current?.getBoundingClientRect();
+    if (!rect) return;
+    setContextMenu({
+      x: e.clientX, y: e.clientY,
+      canvasX: e.clientX - rect.left,
+      canvasY: e.clientY - rect.top,
+    });
+  }, [overlayActive]);
+
+  // Close context menu on click outside
+  useEffect(() => {
+    const close = () => setContextMenu(null);
+    if (contextMenu) {
+      window.addEventListener("click", close, { once: true });
+      return () => window.removeEventListener("click", close);
+    }
+  }, [contextMenu]);
 
   const updateAnnotationNote = (id: string, note: string) => {
     setAnnotations(prev => prev.map(a => a.id === id ? { ...a, note } : a));
@@ -234,6 +359,13 @@ const VisualEditor = () => {
   };
 
   const selectedAnn = annotations.find(a => a.id === selectedAnnotation);
+  const cursorMap: Record<ToolType, string> = {
+    browse: "default",
+    select: "pointer",
+    highlight: "crosshair",
+    text: "text",
+    box: "crosshair",
+  };
 
   return (
     <div className="h-screen flex flex-col overflow-hidden">
@@ -251,26 +383,31 @@ const VisualEditor = () => {
         <div className="flex items-center gap-1 border border-border rounded-md p-1">
           {toolConfig.map((tool) => (
             <button
-              key={tool.label}
-              onClick={() => setActiveTool(tool.label)}
+              key={tool.tool}
+              onClick={() => { setActiveTool(tool.tool); setContextMenu(null); }}
               className={`p-1.5 rounded transition-colors ${
-                activeTool === tool.label
+                activeTool === tool.tool
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:text-foreground hover:bg-secondary"
               }`}
-              title={tool.label}
+              title={`${tool.label} — ${tool.tip}`}
             >
               <tool.icon className="w-4 h-4" />
             </button>
           ))}
         </div>
 
-        <div className="flex-1 max-w-md flex gap-1">
+        {/* Active tool label */}
+        <span className="text-xs text-muted-foreground hidden sm:inline">
+          {toolConfig.find(t => t.tool === activeTool)?.tip}
+        </span>
+
+        <div className="flex-1 max-w-sm flex gap-1 ml-auto">
           <Input
             value={urlInput}
             onChange={(e) => setUrlInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && loadUrl()}
-            placeholder="Enter URL to preview..."
+            placeholder="Enter URL..."
             className="h-8 text-xs bg-secondary border-border text-foreground font-mono"
           />
           <Button size="sm" onClick={loadUrl} className="h-8 bg-gradient-primary text-primary-foreground text-xs px-3">
@@ -289,27 +426,25 @@ const VisualEditor = () => {
           </Button>
         )}
 
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-xs text-muted-foreground">{annotations.length} annotation{annotations.length !== 1 ? "s" : ""}</span>
+        <div className="flex items-center gap-2">
+          <span className="text-xs text-muted-foreground">{annotations.length}</span>
           <Button
-            size="sm"
-            variant="outline"
+            size="sm" variant="outline"
             onClick={() => generateCode("code")}
             disabled={generating || annotations.length === 0}
             className="border-border text-foreground hover:bg-secondary"
           >
-            {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <Code className="w-3.5 h-3.5 mr-1.5" />}
-            Generate Code
+            {generating ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1" /> : <Code className="w-3.5 h-3.5 mr-1" />}
+            Code
           </Button>
           <Button
-            size="sm"
-            variant="outline"
+            size="sm" variant="outline"
             onClick={() => generateCode("instructions")}
             disabled={generating || annotations.length === 0}
             className="border-border text-foreground hover:bg-secondary"
           >
-            <FileText className="w-3.5 h-3.5 mr-1.5" />
-            Instructions
+            <FileText className="w-3.5 h-3.5 mr-1" />
+            Steps
           </Button>
         </div>
       </motion.div>
@@ -335,8 +470,7 @@ const VisualEditor = () => {
                   className="h-8 text-xs bg-secondary border-border text-foreground"
                 />
                 <Button
-                  size="sm"
-                  onClick={addWebsite}
+                  size="sm" onClick={addWebsite}
                   disabled={adding || !newUrl.trim()}
                   className="bg-gradient-primary text-primary-foreground h-8 w-8 p-0"
                 >
@@ -376,9 +510,14 @@ const VisualEditor = () => {
               {/* Browser chrome */}
               <div className="absolute top-0 left-0 right-0 h-8 bg-secondary border-b border-border flex items-center px-3 gap-1.5 z-20">
                 <div className="w-2.5 h-2.5 rounded-full bg-destructive/60" />
-                <div className="w-2.5 h-2.5 rounded-full bg-warning/60" />
-                <div className="w-2.5 h-2.5 rounded-full bg-success/60" />
+                <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
+                <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
                 <span className="text-[10px] text-muted-foreground font-mono ml-2 truncate">{activeUrl}</span>
+                {overlayActive && (
+                  <span className="ml-auto text-[10px] text-primary font-medium animate-pulse">
+                    ● Editing mode — right-click for quick actions
+                  </span>
+                )}
               </div>
 
               {/* iframe */}
@@ -387,93 +526,130 @@ const VisualEditor = () => {
                 className="w-full h-full pt-8 border-0"
                 sandbox="allow-scripts allow-same-origin"
                 title="Website Preview"
-                style={{ pointerEvents: activeTool !== "Select" && activeTool !== "Box" && activeTool !== "Text" ? "auto" : "none" }}
+                style={{ pointerEvents: overlayActive ? "none" : "auto" }}
               />
 
-              {/* Annotation overlay */}
-              <div
-                ref={canvasRef}
-                className="absolute inset-0 mt-8 z-10"
-                style={{ cursor: activeTool === "Text" ? "text" : "crosshair" }}
-                onMouseDown={handleCanvasMouseDown}
-                onMouseMove={handleCanvasMouseMove}
-                onMouseUp={handleCanvasMouseUp}
-                onMouseLeave={handleCanvasMouseUp}
-              >
-                {/* Current drawing */}
-                {isDrawing && currentDraw && currentDraw.w > 2 && (
-                  <div
-                    className="absolute border-2 border-dashed rounded"
-                    style={{
-                      left: currentDraw.x, top: currentDraw.y,
-                      width: currentDraw.w, height: currentDraw.h,
-                      borderColor: COLORS[colorIndex.current % COLORS.length],
-                      backgroundColor: `${COLORS[colorIndex.current % COLORS.length]}15`,
-                    }}
-                  />
-                )}
-
-                {/* Rendered annotations */}
-                {annotations.map((ann) => (
-                  <div
-                    key={ann.id}
-                    className={`absolute rounded cursor-pointer transition-shadow`}
-                    style={{
-                      left: ann.x, top: ann.y,
-                      width: ann.width, height: ann.height,
-                      border: `2px solid ${ann.color}`,
-                      backgroundColor: `${ann.color}15`,
-                      boxShadow: selectedAnnotation === ann.id ? `0 0 0 2px ${ann.color}` : undefined,
-                    }}
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedAnnotation(ann.id);
-                      setEditingNote(ann.note || "");
-                      setEditingText(ann.text || "");
-                    }}
-                  >
-                    {/* Label badge */}
+              {/* Annotation overlay — only visible when a tool is active */}
+              {overlayActive && (
+                <div
+                  ref={canvasRef}
+                  className="absolute inset-0 mt-8 z-10"
+                  style={{ cursor: cursorMap[activeTool] }}
+                  onMouseDown={handleCanvasMouseDown}
+                  onMouseMove={handleCanvasMouseMove}
+                  onMouseUp={handleCanvasMouseUp}
+                  onMouseLeave={() => { if (isDrawing) handleCanvasMouseUp(); }}
+                  onContextMenu={handleRightClick}
+                >
+                  {/* Drawing preview */}
+                  {isDrawing && currentDraw && currentDraw.w > 2 && (
                     <div
-                      className="absolute -top-5 left-0 px-1.5 py-0.5 rounded text-[9px] font-bold text-white whitespace-nowrap"
-                      style={{ backgroundColor: ann.color }}
-                    >
-                      {ann.type === "box" ? "Section" : ann.type === "text" ? "Text" : "Selection"}
-                      {ann.note && ` · ${ann.note.substring(0, 20)}`}
-                    </div>
+                      className="absolute border-2 border-dashed rounded pointer-events-none"
+                      style={{
+                        left: currentDraw.x, top: currentDraw.y,
+                        width: currentDraw.w, height: currentDraw.h,
+                        borderColor: COLORS[colorIndex.current % COLORS.length],
+                        backgroundColor: `${COLORS[colorIndex.current % COLORS.length]}15`,
+                      }}
+                    />
+                  )}
 
-                    {ann.type === "text" && (
-                      <div className="w-full h-full flex items-center justify-center p-1">
-                        <span className="text-xs font-medium" style={{ color: ann.color }}>
-                          {ann.text || "Text"}
-                        </span>
+                  {/* Rendered annotations */}
+                  {annotations.map((ann) => (
+                    <div
+                      key={ann.id}
+                      className="absolute rounded cursor-pointer transition-all"
+                      style={{
+                        left: ann.x, top: ann.y,
+                        width: ann.width, height: ann.height,
+                        border: `2px solid ${ann.color}`,
+                        backgroundColor: ann.type === "highlight"
+                          ? `${ann.color}25`
+                          : `${ann.color}10`,
+                        boxShadow: selectedAnnotation === ann.id
+                          ? `0 0 0 3px ${ann.color}, 0 4px 20px ${ann.color}30`
+                          : undefined,
+                      }}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedAnnotation(ann.id);
+                        setEditingNote(ann.note || "");
+                        setEditingText(ann.text || "");
+                      }}
+                    >
+                      {/* Label badge */}
+                      <div
+                        className="absolute -top-6 left-0 px-2 py-0.5 rounded-t text-[10px] font-semibold text-white whitespace-nowrap flex items-center gap-1"
+                        style={{ backgroundColor: ann.color }}
+                      >
+                        {ann.type === "box" && <Square className="w-2.5 h-2.5" />}
+                        {ann.type === "highlight" && <Highlighter className="w-2.5 h-2.5" />}
+                        {ann.type === "text" && <Type className="w-2.5 h-2.5" />}
+                        {ann.type === "select" && <Crosshair className="w-2.5 h-2.5" />}
+                        {ann.guessedElement || (ann.type === "box" ? "Section" : ann.type === "text" ? "Text" : ann.type === "highlight" ? "Highlight" : "Selection")}
+                        {ann.note && ` · ${ann.note.substring(0, 15)}…`}
                       </div>
-                    )}
 
-                    {/* Delete button */}
-                    <button
-                      onClick={(e) => { e.stopPropagation(); removeAnnotation(ann.id); }}
-                      className="absolute -top-5 -right-1 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80"
+                      {ann.type === "text" && (
+                        <div className="w-full h-full flex items-center justify-center p-1">
+                          <span className="text-xs font-medium" style={{ color: ann.color }}>
+                            {ann.text || "Text"}
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Delete */}
+                      <button
+                        onClick={(e) => { e.stopPropagation(); removeAnnotation(ann.id); }}
+                        className="absolute -top-6 -right-1 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center hover:bg-destructive/80 transition-colors"
+                      >
+                        <X className="w-3 h-3" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Annotations list (visible even in browse mode) */}
+              {!overlayActive && annotations.length > 0 && (
+                <div className="absolute inset-0 mt-8 z-10 pointer-events-none">
+                  {annotations.map((ann) => (
+                    <div
+                      key={ann.id}
+                      className="absolute rounded pointer-events-none"
+                      style={{
+                        left: ann.x, top: ann.y,
+                        width: ann.width, height: ann.height,
+                        border: `2px solid ${ann.color}50`,
+                        backgroundColor: `${ann.color}08`,
+                      }}
                     >
-                      <X className="w-2.5 h-2.5" />
-                    </button>
-                  </div>
-                ))}
-              </div>
+                      <div
+                        className="absolute -top-5 left-0 px-1.5 py-0.5 rounded text-[9px] font-semibold text-white/70 whitespace-nowrap"
+                        style={{ backgroundColor: `${ann.color}80` }}
+                      >
+                        {ann.guessedElement || ann.type}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           ) : (
             <div className="w-full h-full flex items-center justify-center bg-background">
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(220_13%_12%)_1px,transparent_1px)] bg-[length:20px_20px] opacity-50" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,hsl(var(--muted))_1px,transparent_1px)] bg-[length:20px_20px] opacity-30" />
               <motion.div
                 initial={{ opacity: 0, scale: 0.95 }}
                 animate={{ opacity: 1, scale: 1 }}
-                className="relative bg-card border border-border rounded-lg shadow-card w-[500px] p-10 text-center"
+                className="relative bg-card border border-border rounded-lg w-[500px] p-10 text-center"
               >
                 <div className="w-14 h-14 rounded-xl bg-secondary flex items-center justify-center mx-auto mb-5">
                   <Paintbrush className="w-7 h-7 text-muted-foreground" />
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Visual Editor</h3>
                 <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                  Enter a website URL above to load a live preview. Draw selections, add text annotations, and mark areas for changes. Then generate code or step-by-step instructions powered by AI.
+                  Load a website, then use the toolbar to annotate changes.<br />
+                  <strong>Smart Select</strong> auto-detects sections. <strong>Right-click</strong> for quick actions.
                 </p>
                 <div className="flex gap-2 max-w-sm mx-auto">
                   <Input
@@ -503,7 +679,7 @@ const VisualEditor = () => {
             >
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                  Annotation
+                  {selectedAnn.guessedElement || "Annotation"}
                 </h3>
                 <button onClick={() => setSelectedAnnotation(null)} className="text-muted-foreground hover:text-foreground">
                   <X className="w-4 h-4" />
@@ -511,15 +687,11 @@ const VisualEditor = () => {
               </div>
 
               <div className="space-y-4">
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Type</label>
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedAnn.color }} />
                   <span className="text-sm text-foreground capitalize">{selectedAnn.type}</span>
-                </div>
-
-                <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Position</label>
-                  <span className="text-xs text-foreground font-mono">
-                    {Math.round(selectedAnn.x)}, {Math.round(selectedAnn.y)} · {Math.round(selectedAnn.width)}×{Math.round(selectedAnn.height)}
+                  <span className="text-xs text-muted-foreground font-mono ml-auto">
+                    {Math.round(selectedAnn.width)}×{Math.round(selectedAnn.height)}
                   </span>
                 </div>
 
@@ -539,7 +711,7 @@ const VisualEditor = () => {
 
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-1">
-                    <MessageSquare className="w-3 h-3" /> Change Note
+                    <MessageSquare className="w-3 h-3" /> What should change?
                   </label>
                   <Textarea
                     value={editingNote}
@@ -547,19 +719,18 @@ const VisualEditor = () => {
                       setEditingNote(e.target.value);
                       updateAnnotationNote(selectedAnn.id, e.target.value);
                     }}
-                    placeholder="Describe what you want to change here..."
+                    placeholder="e.g. Make the font bigger, change color to blue, add a CTA button..."
                     className="bg-secondary border-border text-foreground text-sm min-h-[80px]"
                   />
                 </div>
 
                 <Button
-                  size="sm"
-                  variant="outline"
+                  size="sm" variant="outline"
                   onClick={() => removeAnnotation(selectedAnn.id)}
                   className="w-full border-destructive text-destructive hover:bg-destructive/10"
                 >
                   <Trash2 className="w-3.5 h-3.5 mr-1.5" />
-                  Remove Annotation
+                  Remove
                 </Button>
               </div>
             </motion.div>
@@ -578,14 +749,10 @@ const VisualEditor = () => {
               <div className="flex items-center justify-between p-4 border-b border-border">
                 <h3 className="text-sm font-semibold text-foreground">Generated Output</h3>
                 <div className="flex items-center gap-1">
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => {
-                      navigator.clipboard.writeText(generatedOutput);
-                      toast.success("Copied to clipboard");
-                    }}
-                  >
+                  <Button size="sm" variant="ghost" onClick={() => {
+                    navigator.clipboard.writeText(generatedOutput);
+                    toast.success("Copied!");
+                  }}>
                     <Download className="w-3.5 h-3.5" />
                   </Button>
                   <button onClick={() => setShowOutput(false)} className="text-muted-foreground hover:text-foreground">
@@ -602,6 +769,50 @@ const VisualEditor = () => {
           )}
         </AnimatePresence>
       </div>
+
+      {/* Context menu */}
+      <AnimatePresence>
+        {contextMenu && (
+          <motion.div
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.9 }}
+            transition={{ duration: 0.1 }}
+            className="fixed z-50 bg-card border border-border rounded-lg shadow-lg py-1 min-w-[180px]"
+            style={{ left: contextMenu.x, top: contextMenu.y }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <button
+              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors"
+              onClick={() => handleContextAction("smart_select")}
+            >
+              <Crosshair className="w-4 h-4 text-primary" />
+              Auto-detect section
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors"
+              onClick={() => handleContextAction("add_box")}
+            >
+              <Square className="w-4 h-4 text-blue-400" />
+              Add a box here
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors"
+              onClick={() => handleContextAction("add_text")}
+            >
+              <Type className="w-4 h-4 text-green-400" />
+              Add text here
+            </button>
+            <button
+              className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary flex items-center gap-2 transition-colors"
+              onClick={() => handleContextAction("highlight")}
+            >
+              <Highlighter className="w-4 h-4 text-yellow-400" />
+              Highlight this area
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
