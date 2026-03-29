@@ -21,6 +21,10 @@ export type Database = {
           escalation_email: string | null
           id: string
           positioning: string | null
+          social_facebook: string | null
+          social_instagram: string | null
+          social_linkedin: string | null
+          social_twitter: string | null
           support_email: string | null
           tone: string | null
           updated_at: string
@@ -32,6 +36,10 @@ export type Database = {
           escalation_email?: string | null
           id?: string
           positioning?: string | null
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_twitter?: string | null
           support_email?: string | null
           tone?: string | null
           updated_at?: string
@@ -43,6 +51,10 @@ export type Database = {
           escalation_email?: string | null
           id?: string
           positioning?: string | null
+          social_facebook?: string | null
+          social_instagram?: string | null
+          social_linkedin?: string | null
+          social_twitter?: string | null
           support_email?: string | null
           tone?: string | null
           updated_at?: string
@@ -76,6 +88,130 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      scan_issues: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          fix_code: string | null
+          fix_content: string | null
+          fix_dev: string | null
+          fix_nocode: string | null
+          fix_visual: string | null
+          id: string
+          impact: string | null
+          location: string | null
+          priority: string
+          scan_id: string
+          status: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description: string
+          fix_code?: string | null
+          fix_content?: string | null
+          fix_dev?: string | null
+          fix_nocode?: string | null
+          fix_visual?: string | null
+          id?: string
+          impact?: string | null
+          location?: string | null
+          priority?: string
+          scan_id: string
+          status?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          fix_code?: string | null
+          fix_content?: string | null
+          fix_dev?: string | null
+          fix_nocode?: string | null
+          fix_visual?: string | null
+          id?: string
+          impact?: string | null
+          location?: string | null
+          priority?: string
+          scan_id?: string
+          status?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_issues_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scans: {
+        Row: {
+          ai_summary: string | null
+          brand_analysis: Json | null
+          created_at: string
+          health_score: number | null
+          id: string
+          media_analysis: Json | null
+          scan_type: string
+          security_score: number | null
+          sentiment_score: number | null
+          status: string
+          updated_at: string
+          url: string
+          user_id: string
+          website_id: string | null
+        }
+        Insert: {
+          ai_summary?: string | null
+          brand_analysis?: Json | null
+          created_at?: string
+          health_score?: number | null
+          id?: string
+          media_analysis?: Json | null
+          scan_type?: string
+          security_score?: number | null
+          sentiment_score?: number | null
+          status?: string
+          updated_at?: string
+          url: string
+          user_id: string
+          website_id?: string | null
+        }
+        Update: {
+          ai_summary?: string | null
+          brand_analysis?: Json | null
+          created_at?: string
+          health_score?: number | null
+          id?: string
+          media_analysis?: Json | null
+          scan_type?: string
+          security_score?: number | null
+          sentiment_score?: number | null
+          status?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+          website_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scans_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       websites: {
         Row: {
