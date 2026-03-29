@@ -417,9 +417,7 @@ const VisualEditor = () => {
                 {annotations.map((ann) => (
                   <div
                     key={ann.id}
-                    className={`absolute rounded cursor-pointer transition-shadow ${
-                      selectedAnnotation === ann.id ? "ring-2 ring-offset-1" : ""
-                    }`}
+                    className={`absolute rounded cursor-pointer transition-shadow`}
                     style={{
                       left: ann.x, top: ann.y,
                       width: ann.width, height: ann.height,
