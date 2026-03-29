@@ -1,8 +1,13 @@
+import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Globe, Shield, Play, RefreshCw } from "lucide-react";
+import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import ActionItem from "@/components/ui/action-item";
 import ScoreCard from "@/components/ui/score-card";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 const qaIssues = [
   {
@@ -51,6 +56,48 @@ const securityIssues = [
 ];
 
 const WebsiteAnalysis = () => {
+  const { user } = useAuth();
+  const [websites, setWebsites] = useState<{ id: string; url: string; name: string | null }[]>([]);
+  const [newUrl, setNewUrl] = useState("");
+  const [adding, setAdding] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    supabase
+      .from("websites")
+      .select("id, url, name")
+      .eq("user_id", user.id)
+      .eq("section", "analysis")
+      .then(({ data }) => {
+        if (data) setWebsites(data);
+      });
+  }, [user]);
+
+  const addWebsite = async () => {
+    if (!newUrl.trim() || !user) return;
+    setAdding(true);
+    try {
+      const { data, error } = await supabase
+        .from("websites")
+        .insert({ user_id: user.id, url: newUrl.trim(), section: "analysis" })
+        .select("id, url, name")
+        .single();
+      if (error) throw error;
+      if (data) setWebsites((prev) => [...prev, data]);
+      setNewUrl("");
+      toast.success("Website added for analysis");
+    } catch (e: any) {
+      toast.error(e.message);
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const removeWebsite = async (id: string) => {
+    await supabase.from("websites").delete().eq("id", id);
+    setWebsites((prev) => prev.filter((w) => w.id !== id));
+  };
+
   return (
     <div className="p-8 max-w-5xl">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
@@ -73,6 +120,34 @@ const WebsiteAnalysis = () => {
           </div>
         </div>
       </motion.div>
+
+      {/* Add website */}
+      <div className="bg-card border border-border rounded-lg p-4 mb-6 shadow-card">
+        <h3 className="text-sm font-semibold text-foreground mb-3">Monitored Websites</h3>
+        <div className="flex gap-2 mb-3">
+          <Input
+            placeholder="https://yourwebsite.com"
+            value={newUrl}
+            onChange={(e) => setNewUrl(e.target.value)}
+            className="bg-secondary border-border text-foreground"
+          />
+          <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" className="bg-gradient-primary text-primary-foreground">
+            {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
+          </Button>
+        </div>
+        {websites.length > 0 && (
+          <div className="space-y-1">
+            {websites.map((w) => (
+              <div key={w.id} className="flex items-center justify-between px-3 py-1.5 bg-secondary rounded text-sm">
+                <span className="text-foreground font-mono text-xs">{w.url}</span>
+                <button onClick={() => removeWebsite(w.id)} className="text-muted-foreground hover:text-destructive">
+                  <Trash2 className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
 
       {/* Scores */}
       <div className="grid grid-cols-2 gap-4 mb-8">
