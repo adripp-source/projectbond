@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
-import { motion } from "framer-motion";
-import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2 } from "lucide-react";
+import { useState, useEffect, useRef } from "react";
+import { motion, AnimatePresence } from "framer-motion";
+import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, MessageSquare, Send, X, Bot } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ActionItem from "@/components/ui/action-item";
@@ -10,26 +10,14 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 
-interface WebsiteRow {
-  id: string;
-  url: string;
-  name: string | null;
-}
-
+interface WebsiteRow { id: string; url: string; name: string | null; }
 interface IssueData {
-  id: string;
-  title: string;
-  description: string;
-  category: string;
-  priority: string;
-  impact: string | null;
-  location: string | null;
-  fix_dev: string | null;
-  fix_code: string | null;
-  fix_nocode: string | null;
-  fix_content: string | null;
-  fix_visual: string | null;
+  id: string; title: string; description: string; category: string;
+  priority: string; impact: string | null; location: string | null;
+  fix_dev: string | null; fix_code: string | null; fix_nocode: string | null;
+  fix_content: string | null; fix_visual: string | null;
 }
+interface ChatMsg { role: "user" | "assistant"; content: string; }
 
 const WebsiteAnalysis = () => {
   const { user } = useAuth();
@@ -43,65 +31,47 @@ const WebsiteAnalysis = () => {
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [securityScore, setSecurityScore] = useState<number | null>(null);
   const [scanCount, setScanCount] = useState(0);
+  // Chat
+  const [chatOpen, setChatOpen] = useState(false);
+  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
+  const [chatInput, setChatInput] = useState("");
+  const [chatLoading, setChatLoading] = useState(false);
+  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const loadData = async () => {
     if (!user) return;
-
     const [websiteRes, scanRes] = await Promise.all([
       supabase.from("websites").select("id, url, name").eq("user_id", user.id),
       supabase.from("scans").select("id, health_score, security_score").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).single(),
     ]);
-
     if (websiteRes.data) setWebsites(websiteRes.data);
-
     if (scanRes.data) {
       setHealthScore(scanRes.data.health_score);
       setSecurityScore(scanRes.data.security_score);
-
-      const { data: issues } = await supabase
-        .from("scan_issues")
-        .select("*")
-        .eq("scan_id", scanRes.data.id);
-
+      const { data: issues } = await supabase.from("scan_issues").select("*").eq("scan_id", scanRes.data.id);
       if (issues) {
         setQaIssues(issues.filter(i => ["qa", "performance", "accessibility", "content"].includes(i.category)));
         setSecurityIssues(issues.filter(i => i.category === "security"));
       }
     }
-
-    // Count today's scans
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const { count } = await supabase
-      .from("scans")
-      .select("id", { count: "exact", head: true })
-      .eq("user_id", user.id)
-      .gte("created_at", today.toISOString());
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    const { count } = await supabase.from("scans").select("id", { count: "exact", head: true }).eq("user_id", user.id).gte("created_at", today.toISOString());
     setScanCount(count || 0);
-
     setLoading(false);
   };
 
   useEffect(() => { loadData(); }, [user]);
+  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
 
   const addWebsite = async () => {
     if (!newUrl.trim() || !user) return;
     setAdding(true);
     try {
-      const { data, error } = await supabase
-        .from("websites")
-        .insert({ user_id: user.id, url: newUrl.trim(), section: "analysis" })
-        .select("id, url, name")
-        .single();
+      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "analysis" }).select("id, url, name").single();
       if (error) throw error;
       if (data) setWebsites(prev => [...prev, data]);
-      setNewUrl("");
-      toast.success("Website added");
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setAdding(false);
-    }
+      setNewUrl(""); toast.success("Website added");
+    } catch (e: any) { toast.error(e.message); } finally { setAdding(false); }
   };
 
   const removeWebsite = async (id: string) => {
@@ -111,19 +81,51 @@ const WebsiteAnalysis = () => {
 
   const runScan = async () => {
     const urlToScan = websites[0]?.url || newUrl.trim();
-    if (!urlToScan) {
-      toast.error("Add a website first");
-      return;
-    }
+    if (!urlToScan) { toast.error("Add a website first"); return; }
     setScanning(true);
     try {
       await api.analyzeWebsite(urlToScan);
       toast.success("Scan complete!");
       await loadData();
+    } catch (e: any) { toast.error(e.message || "Scan failed"); } finally { setScanning(false); }
+  };
+
+  const sendChat = async () => {
+    if (!chatInput.trim()) return;
+    const question = chatInput.trim();
+    setChatInput("");
+    const newMessages: ChatMsg[] = [...chatMessages, { role: "user", content: question }];
+    setChatMessages(newMessages);
+    setChatLoading(true);
+
+    // Check if the question is about security → trigger a test if quota remains
+    const isSecurityQuestion = /security|vulnerab|attack|hack|ssl|xss|csrf|injection|auth/i.test(question);
+    const canRunTest = scanCount < 15;
+
+    try {
+      const { data, error } = await supabase.functions.invoke("analysis-chat", {
+        body: {
+          question,
+          run_security_test: isSecurityQuestion && canRunTest,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      let answer = data.answer || "I couldn't generate a response.";
+      if (data.securityTestResult?.ran === false) {
+        answer += "\n\n⚠️ " + data.securityTestResult.reason;
+      } else if (data.securityTestResult?.ran) {
+        answer += "\n\n✅ A security check was triggered based on your question.";
+        // Refresh data
+        await loadData();
+      }
+
+      setChatMessages([...newMessages, { role: "assistant", content: answer }]);
     } catch (e: any) {
-      toast.error(e.message || "Scan failed");
+      setChatMessages([...newMessages, { role: "assistant", content: `Error: ${e.message}` }]);
     } finally {
-      setScanning(false);
+      setChatLoading(false);
     }
   };
 
@@ -134,23 +136,16 @@ const WebsiteAnalysis = () => {
     if (issue.fix_nocode) types.push("no-code");
     if (issue.fix_content) types.push("content");
     if (issue.fix_visual) types.push("visual");
-    if (types.length === 0) {
-      if (issue.category === "security") types.push("dev");
-      else types.push("code");
-    }
+    if (types.length === 0) types.push(issue.category === "security" ? "dev" : "code");
     return types;
   };
 
   if (loading) {
-    return (
-      <div className="p-8 flex items-center justify-center min-h-[50vh]">
-        <Loader2 className="w-6 h-6 animate-spin text-primary" />
-      </div>
-    );
+    return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-8 max-w-5xl relative">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -164,15 +159,8 @@ const WebsiteAnalysis = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{scanCount}/15 scans today</span>
-            <Button
-              size="sm"
-              variant="outline"
-              className="border-border text-foreground hover:bg-secondary"
-              onClick={runScan}
-              disabled={scanning}
-            >
-              {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}
-              Run Scan
+            <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={runScan} disabled={scanning}>
+              {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}Run Scan
             </Button>
           </div>
         </div>
@@ -182,12 +170,7 @@ const WebsiteAnalysis = () => {
       <div className="bg-card border border-border rounded-lg p-4 mb-6 shadow-card">
         <h3 className="text-sm font-semibold text-foreground mb-3">Monitored Websites</h3>
         <div className="flex gap-2 mb-3">
-          <Input
-            placeholder="https://yourwebsite.com"
-            value={newUrl}
-            onChange={(e) => setNewUrl(e.target.value)}
-            className="bg-secondary border-border text-foreground"
-          />
+          <Input placeholder="https://yourwebsite.com" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} className="bg-secondary border-border text-foreground" />
           <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" className="bg-gradient-primary text-primary-foreground">
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
@@ -197,9 +180,7 @@ const WebsiteAnalysis = () => {
             {websites.map(w => (
               <div key={w.id} className="flex items-center justify-between px-3 py-1.5 bg-secondary rounded text-sm">
                 <span className="text-foreground font-mono text-xs">{w.url}</span>
-                <button onClick={() => removeWebsite(w.id)} className="text-muted-foreground hover:text-destructive">
-                  <Trash2 className="w-3.5 h-3.5" />
-                </button>
+                <button onClick={() => removeWebsite(w.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
               </div>
             ))}
           </div>
@@ -218,22 +199,12 @@ const WebsiteAnalysis = () => {
       {qaIssues.length > 0 && (
         <div className="mb-8">
           <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Play className="w-4 h-4 text-primary" />
-            QA Issues
-            <span className="text-xs text-muted-foreground font-normal">({qaIssues.length})</span>
+            <Play className="w-4 h-4 text-primary" />QA Issues<span className="text-xs text-muted-foreground font-normal">({qaIssues.length})</span>
           </h2>
           <div className="space-y-2">
             {qaIssues.map((issue, i) => (
-              <ActionItem
-                key={issue.id}
-                title={issue.title}
-                description={issue.description}
-                priority={issue.priority as any}
-                impact={issue.impact || ""}
-                location={issue.location || ""}
-                fixTypes={getFixTypes(issue)}
-                index={i}
-              />
+              <ActionItem key={issue.id} title={issue.title} description={issue.description} priority={issue.priority as any}
+                impact={issue.impact || ""} location={issue.location || ""} fixTypes={getFixTypes(issue)} index={i} />
             ))}
           </div>
         </div>
@@ -241,24 +212,14 @@ const WebsiteAnalysis = () => {
 
       {/* Security */}
       {securityIssues.length > 0 && (
-        <div>
+        <div className="mb-8">
           <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Shield className="w-4 h-4 text-destructive" />
-            Security Findings
-            <span className="text-xs text-muted-foreground font-normal">({securityIssues.length})</span>
+            <Shield className="w-4 h-4 text-destructive" />Security Findings<span className="text-xs text-muted-foreground font-normal">({securityIssues.length})</span>
           </h2>
           <div className="space-y-2">
             {securityIssues.map((issue, i) => (
-              <ActionItem
-                key={issue.id}
-                title={issue.title}
-                description={issue.description}
-                priority={issue.priority as any}
-                impact={issue.impact || ""}
-                location={issue.location || ""}
-                fixTypes={getFixTypes(issue)}
-                index={i}
-              />
+              <ActionItem key={issue.id} title={issue.title} description={issue.description} priority={issue.priority as any}
+                impact={issue.impact || ""} location={issue.location || ""} fixTypes={getFixTypes(issue)} index={i} />
             ))}
           </div>
         </div>
@@ -269,6 +230,73 @@ const WebsiteAnalysis = () => {
           <p className="text-sm text-muted-foreground">No issues found yet. Run a scan to analyze your website.</p>
         </div>
       )}
+
+      {/* Chat FAB */}
+      <button onClick={() => setChatOpen(!chatOpen)}
+        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 transition-opacity">
+        {chatOpen ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6" />}
+      </button>
+
+      {/* Chat panel */}
+      <AnimatePresence>
+        {chatOpen && (
+          <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
+            className="fixed bottom-24 right-6 z-50 w-96 h-[500px] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-secondary/50">
+              <Bot className="w-4 h-4 text-primary" />
+              <span className="text-sm font-semibold text-foreground">Analysis Assistant</span>
+              <span className="text-[10px] text-muted-foreground ml-auto">{scanCount}/15 scans left</span>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              {chatMessages.length === 0 && (
+                <div className="text-center py-8">
+                  <Bot className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
+                  <p className="text-sm text-muted-foreground">Ask me about your website's health, security, or performance.</p>
+                  <div className="mt-3 space-y-1">
+                    {["Is there a security problem?", "What's my biggest issue?", "How can I improve my score?"].map(q => (
+                      <button key={q} onClick={() => { setChatInput(q); }}
+                        className="block w-full text-left text-xs text-primary hover:underline px-2 py-1">
+                        → {q}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {chatMessages.map((msg, i) => (
+                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                  <div className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
+                    msg.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-secondary text-foreground"
+                  }`}>
+                    <p className="whitespace-pre-wrap">{msg.content}</p>
+                  </div>
+                </div>
+              ))}
+              {chatLoading && (
+                <div className="flex justify-start">
+                  <div className="bg-secondary px-3 py-2 rounded-lg">
+                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            <div className="border-t border-border p-3 flex gap-2">
+              <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChat()}
+                placeholder="Ask about your website..."
+                className="bg-secondary border-border text-foreground text-sm" />
+              <Button size="sm" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
+                className="bg-gradient-primary text-primary-foreground">
+                <Send className="w-4 h-4" />
+              </Button>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };
