@@ -109,6 +109,23 @@ Based on what you can infer about this company and industry, provide a realistic
                     required: ['name', 'description', 'percentage']
                   }
                 },
+                key_customers: {
+                  type: 'array',
+                  description: 'Notable individual customers, influencers, or brand advocates with public profiles',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      full_name: { type: 'string' },
+                      title: { type: 'string', description: 'Job title or role' },
+                      company: { type: 'string' },
+                      linkedin_url: { type: 'string', description: 'LinkedIn profile URL if available' },
+                      twitter_handle: { type: 'string' },
+                      avatar_url: { type: 'string', description: 'Public profile picture URL if known' },
+                      relevance: { type: 'string', description: 'Why this person is relevant to the brand' }
+                    },
+                    required: ['full_name', 'title', 'relevance']
+                  }
+                },
                 improvements: {
                   type: 'array',
                   items: { type: 'string' }
