@@ -144,7 +144,7 @@ Based on what you can infer about this company and industry, provide a realistic
                   }
                 }
               },
-              required: ['sentiment', 'overall_score', 'complaints', 'customer_groups', 'improvements', 'sentiment_over_time']
+              required: ['sentiment', 'overall_score', 'complaints', 'customer_groups', 'key_customers', 'improvements', 'sentiment_over_time']
             }
           }
         }],
