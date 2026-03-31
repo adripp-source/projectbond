@@ -72,6 +72,7 @@ export type Database = {
           updated_at: string
           user_id: string
           user_type: string | null
+          workspace_id: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -82,6 +83,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           user_type?: string | null
+          workspace_id?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -92,8 +94,17 @@ export type Database = {
           updated_at?: string
           user_id?: string
           user_type?: string | null
+          workspace_id?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "profiles_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       scan_issues: {
         Row: {
@@ -249,12 +260,71 @@ export type Database = {
         }
         Relationships: []
       }
+      workspace_members: {
+        Row: {
+          id: string
+          joined_at: string
+          role: string
+          user_id: string
+          workspace_id: string
+        }
+        Insert: {
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id: string
+          workspace_id: string
+        }
+        Update: {
+          id?: string
+          joined_at?: string
+          role?: string
+          user_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "workspace_members_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      workspaces: {
+        Row: {
+          company_code: string
+          company_name: string
+          created_at: string
+          id: string
+          owner_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_code: string
+          company_name: string
+          created_at?: string
+          id?: string
+          owner_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_code?: string
+          company_name?: string
+          created_at?: string
+          id?: string
+          owner_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      generate_company_code: { Args: never; Returns: string }
     }
     Enums: {
       [_ in never]: never

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
@@ -12,25 +12,43 @@ import {
   ChevronLeft,
   Zap,
   LogOut,
+  Kanban,
+  Hash,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
-const navItems = [
+const getNavItems = (userType: string | null, companyCode: string | null) => [
   { path: "/home", label: "Home", icon: Home },
   { path: "/branding", label: "Branding", icon: Palette },
   { path: "/analysis", label: "Website Analysis", icon: Globe },
   { path: "/media", label: "Media Footprint", icon: Newspaper },
-  { path: "/actions", label: "Action Center", icon: Target },
+  { path: "/actions", label: userType === "dev_team" ? "Dev Board" : "Action Center", icon: userType === "dev_team" ? Kanban : Target },
   { path: "/editor", label: "Visual Editor", icon: Paintbrush },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 
 const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [userType, setUserType] = useState<string | null>(null);
+  const [companyCode, setCompanyCode] = useState<string | null>(null);
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("user_type, workspace_id").eq("user_id", user.id).single().then(async ({ data }) => {
+      setUserType((data as any)?.user_type ?? null);
+      if ((data as any)?.workspace_id) {
+        const { data: ws } = await supabase.from("workspaces").select("company_code").eq("id", (data as any).workspace_id).single();
+        setCompanyCode((ws as any)?.company_code ?? null);
+      }
+    });
+  }, [user]);
+
+  const navItems = getNavItems(userType, companyCode);
 
   const handleSignOut = async () => {
     await signOut();
@@ -96,6 +114,17 @@ const AppSidebar = () => {
           );
         })}
       </nav>
+
+      {/* Company code */}
+      {companyCode && !collapsed && (
+        <div className="px-3 py-2 border-t border-sidebar-border">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-sidebar-accent/30">
+            <Hash className="w-3 h-3 text-primary flex-shrink-0" />
+            <span className="text-[10px] text-muted-foreground">Team Code:</span>
+            <span className="text-xs font-mono font-bold text-primary">{companyCode}</span>
+          </div>
+        </div>
+      )}
 
       {/* Bottom actions */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
