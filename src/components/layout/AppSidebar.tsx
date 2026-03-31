@@ -31,9 +31,24 @@ const getNavItems = (userType: string | null, companyCode: string | null) => [
 
 const AppSidebar = () => {
   const [collapsed, setCollapsed] = useState(false);
+  const [userType, setUserType] = useState<string | null>(null);
+  const [companyCode, setCompanyCode] = useState<string | null>(null);
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("user_type, workspace_id").eq("user_id", user.id).single().then(async ({ data }) => {
+      setUserType((data as any)?.user_type ?? null);
+      if ((data as any)?.workspace_id) {
+        const { data: ws } = await supabase.from("workspaces").select("company_code").eq("id", (data as any).workspace_id).single();
+        setCompanyCode((ws as any)?.company_code ?? null);
+      }
+    });
+  }, [user]);
+
+  const navItems = getNavItems(userType, companyCode);
 
   const handleSignOut = async () => {
     await signOut();
