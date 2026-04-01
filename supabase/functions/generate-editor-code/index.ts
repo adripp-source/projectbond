@@ -31,6 +31,60 @@ serve(async (req) => {
     }
 
     const { url, annotations, mode } = await req.json();
+
+    // Flow mode doesn't need annotations
+    if (mode === 'flow') {
+      const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+      if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+
+      const flowResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${LOVABLE_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'google/gemini-3-flash-preview',
+          messages: [
+            {
+              role: 'system',
+              content: 'You are an expert software architect. Generate website flow diagrams as JSON. Return ONLY valid JSON, no markdown.'
+            },
+            {
+              role: 'user',
+              content: `Analyze ${url} and generate a flow diagram showing:
+- All main pages and their relationships
+- User flows (signup, login, checkout, etc.)
+- API connections
+- Decision points
+- External services
+
+Return JSON format:
+{
+  "nodes": [{"id": "n0", "label": "Homepage", "type": "page|action|api|decision|external", "x": 100, "y": 80}],
+  "edges": [{"from": "n0", "to": "n1", "label": "Click CTA"}],
+  "summary": "Brief description of the website architecture"
+}
+
+Generate 8-15 nodes with logical positions (x: 100-900, y: 80-700). Space them in a readable layout.`
+            }
+          ],
+        }),
+      });
+
+      if (!flowResponse.ok) {
+        if (flowResponse.status === 429) return new Response(JSON.stringify({ error: 'Rate limited' }), { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        if (flowResponse.status === 402) return new Response(JSON.stringify({ error: 'AI credits exhausted' }), { status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
+        throw new Error(`AI gateway error: ${flowResponse.status}`);
+      }
+
+      const flowData = await flowResponse.json();
+      const output = flowData.choices?.[0]?.message?.content;
+      return new Response(JSON.stringify({ output, mode: 'flow' }), {
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     if (!url || !annotations || annotations.length === 0) {
       return new Response(JSON.stringify({ error: 'URL and annotations are required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
