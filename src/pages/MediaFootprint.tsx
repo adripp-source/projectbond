@@ -306,6 +306,53 @@ const MediaFootprint = () => {
             </div>
           )}
 
+          {/* AI Suggestions Engine */}
+          {analysis.suggestions && analysis.suggestions.length > 0 && (
+            <div className="bg-card border border-border rounded-lg p-5 mb-8 shadow-card">
+              <div className="flex items-center gap-2 mb-4">
+                <Sparkles className="w-4 h-4 text-primary" />
+                <h3 className="text-sm font-semibold text-foreground">AI Suggestions</h3>
+                <span className="text-xs text-muted-foreground ml-auto">{analysis.suggestions.length} actionable insights</span>
+              </div>
+              <div className="space-y-3">
+                {analysis.suggestions.map((sug, i) => {
+                  const catColors: Record<string, string> = {
+                    feature: "bg-primary/10 text-primary",
+                    content: "bg-warning/10 text-warning",
+                    ux: "bg-success/10 text-success",
+                    messaging: "bg-purple-500/10 text-purple-400",
+                    marketing: "bg-blue-500/10 text-blue-400",
+                    competitive: "bg-destructive/10 text-destructive",
+                  };
+                  const priorityDots: Record<string, string> = { high: "bg-destructive", medium: "bg-warning", low: "bg-success" };
+                  return (
+                    <motion.div key={i} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.03 }}
+                      className="bg-secondary rounded-lg p-4">
+                      <div className="flex items-start gap-3">
+                        <div className={`w-2 h-2 rounded-full mt-2 flex-shrink-0 ${priorityDots[sug.priority] || "bg-muted-foreground"}`} />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1">
+                            <h4 className="text-sm font-medium text-foreground">{sug.title}</h4>
+                            <span className={`text-[10px] px-1.5 py-0.5 rounded ${catColors[sug.category] || "bg-secondary text-muted-foreground"}`}>
+                              {sug.category}
+                            </span>
+                          </div>
+                          <p className="text-xs text-muted-foreground mb-1">{sug.description}</p>
+                          {sug.linked_complaint && (
+                            <p className="text-[10px] text-primary flex items-center gap-1">
+                              <ArrowRight className="w-2.5 h-2.5" />
+                              Addresses: {sug.linked_complaint}
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
           {/* Customer Groups */}
           {analysis.customer_groups?.length > 0 && (
             <div className="bg-card border border-border rounded-lg p-5 shadow-card">
