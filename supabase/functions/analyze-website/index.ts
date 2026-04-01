@@ -40,7 +40,6 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
-    // Call AI to analyze the website
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -52,33 +51,99 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an expert website analyst specializing in QA testing, security analysis, UX evaluation, and brand perception. You analyze websites thoroughly and return structured findings. Be specific, actionable, and realistic. Base your analysis on common patterns for the type of website the URL suggests.`
+            content: `You are an expert QA team lead + security analyst. You perform deep, production-grade website analysis.
+
+Your analysis MUST cover ALL of the following categories:
+
+FUNCTIONAL TESTING:
+- Buttons, links, forms — do they work?
+- Navigation flows — are they logical?
+- Edge cases: empty states, invalid input, multi-step flows
+- Error handling: what happens on bad input?
+
+UI/UX TESTING:
+- Layout alignment and spacing issues
+- CTA clarity — are buttons/actions obvious?
+- Usability friction — confusing elements
+- Visual hierarchy — is important content prominent?
+
+CONTENT TESTING:
+- Placeholder text left in production
+- Missing sections (about, contact, FAQ)
+- Unclear messaging or jargon
+- Broken images or media
+
+ACCESSIBILITY TESTING:
+- Missing alt text on images
+- Missing form labels
+- Color contrast issues
+- Keyboard navigation problems
+- ARIA attributes
+
+RESPONSIVE TESTING:
+- Mobile layout issues
+- Touch target sizes
+- Viewport meta tag
+- Responsive images
+
+PERFORMANCE / QUALITY:
+- Render-blocking resources
+- Large images without optimization
+- Missing lazy loading
+- Slow-loading patterns
+
+USER FLOW TESTING:
+- Onboarding flow completeness
+- Signup/login friction
+- Checkout or conversion flow issues
+- Drop-off risk points
+
+SECURITY (STRONG):
+- Input validation (XSS, injection patterns)
+- Authentication weaknesses
+- Session/cookie security
+- Data exposure risks
+- HTTPS/mixed content
+- Missing security headers (CSP, X-Frame, HSTS)
+- Business logic bypass potential
+- API/data flow safety
+- Error information leakage
+
+EDGE CASE GENERATION:
+- Generate realistic test cases for the most critical flows
+- Identify rare but high-impact failure scenarios
+
+For EACH issue, provide clear, specific, actionable details. Be realistic based on the URL type.`
           },
           {
             role: 'user',
-            content: `Analyze the website at: ${url}${company_name ? ` (Company: ${company_name})` : ''}
+            content: `Perform a comprehensive QA + security analysis of: ${url}${company_name ? ` (Company: ${company_name})` : ''}
 
-Perform a comprehensive analysis covering:
-1. QA/UX issues (navigation, forms, buttons, mobile, accessibility, content)
-2. Security concerns (OWASP-based safe checks: input validation, CSRF, headers, cookies, auth flows)
-3. Performance concerns
-4. Brand perception and positioning
+Generate 15-25 realistic issues across ALL categories. Include at least:
+- 3 functional issues
+- 3 UI/UX issues  
+- 2 content issues
+- 2 accessibility issues
+- 2 responsive issues
+- 2 performance issues
+- 3 security issues
+- 2 edge case scenarios
 
-Based on the URL structure and what you can infer about this type of website, provide realistic findings.`
+For each issue, include specific fix instructions for developers AND non-technical users.`
           }
         ],
         tools: [{
           type: 'function',
           function: {
             name: 'website_analysis',
-            description: 'Return structured website analysis results',
+            description: 'Return comprehensive QA + security analysis',
             parameters: {
               type: 'object',
               properties: {
-                health_score: { type: 'integer', description: 'Overall health score 0-100' },
+                health_score: { type: 'integer', description: 'Overall health 0-100 (weighted: functional 25%, UX 20%, content 15%, accessibility 15%, responsive 10%, performance 15%)' },
                 security_score: { type: 'integer', description: 'Security score 0-100' },
-                sentiment_score: { type: 'integer', description: 'Brand/sentiment score 0-100' },
-                ai_summary: { type: 'string', description: 'Executive summary of findings in 2-3 sentences' },
+                sentiment_score: { type: 'integer', description: 'Brand/user sentiment 0-100' },
+                ai_summary: { type: 'string', description: '3-4 sentence executive summary with verdict: good/needs improvement/critical. Include top priority and estimated impact.' },
                 brand_analysis: {
                   type: 'object',
                   properties: {
@@ -94,17 +159,19 @@ Based on the URL structure and what you can infer about this type of website, pr
                   items: {
                     type: 'object',
                     properties: {
-                      title: { type: 'string' },
-                      description: { type: 'string' },
-                      category: { type: 'string', enum: ['qa', 'security', 'performance', 'content', 'accessibility'] },
+                      title: { type: 'string', description: 'Clear, concise issue title' },
+                      description: { type: 'string', description: 'Detailed description of the problem and why it matters' },
+                      category: { type: 'string', enum: ['qa', 'security', 'performance', 'content', 'accessibility', 'responsive', 'ux', 'user_flow', 'edge_case'] },
                       priority: { type: 'string', enum: ['critical', 'warning', 'low'] },
-                      impact: { type: 'string' },
-                      location: { type: 'string' },
-                      fix_dev: { type: 'string', description: 'Technical fix steps for developers' },
-                      fix_code: { type: 'string', description: 'Code snippet to fix the issue (HTML/CSS/JS)' },
-                      fix_nocode: { type: 'string', description: 'Step-by-step instructions for non-developers' },
-                      fix_content: { type: 'string', description: 'Content/messaging improvements' },
-                      fix_visual: { type: 'string', description: 'Visual/UI suggestions' }
+                      impact: { type: 'string', description: 'Business impact: revenue/trust/UX/conversion effect' },
+                      location: { type: 'string', description: 'Specific page, component, or element affected' },
+                      fix_dev: { type: 'string', description: 'Technical fix for developers with specific steps' },
+                      fix_code: { type: 'string', description: 'Ready-to-use code snippet (HTML/CSS/JS/React)' },
+                      fix_nocode: { type: 'string', description: 'Step-by-step for non-developers using website builders' },
+                      fix_content: { type: 'string', description: 'Content/messaging fix with example copy' },
+                      fix_visual: { type: 'string', description: 'Visual/UI design suggestion with specifics' },
+                      test_case: { type: 'string', description: 'Human-readable test case to verify the issue' },
+                      edge_cases: { type: 'string', description: 'Related edge cases to also test' }
                     },
                     required: ['title', 'description', 'category', 'priority', 'impact', 'location']
                   }
@@ -140,13 +207,11 @@ Based on the URL structure and what you can infer about this type of website, pr
 
     const analysis = JSON.parse(toolCall.function.arguments);
 
-    // Use service role to insert data
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Update or create scan record
     const scanData = {
       user_id: user.id,
       url,
@@ -164,22 +229,18 @@ Based on the URL structure and what you can infer about this type of website, pr
       await adminClient.from('scans').update(scanData).eq('id', scan_id);
     } else {
       const { data: newScan, error: scanError } = await adminClient
-        .from('scans')
-        .insert(scanData)
-        .select('id')
-        .single();
+        .from('scans').insert(scanData).select('id').single();
       if (scanError) throw scanError;
       finalScanId = newScan.id;
     }
 
-    // Insert issues
     if (analysis.issues && analysis.issues.length > 0) {
       const issueRows = analysis.issues.map((issue: any) => ({
         scan_id: finalScanId,
         user_id: user.id,
         title: issue.title,
         description: issue.description,
-        category: issue.category,
+        category: issue.category === 'ux' || issue.category === 'user_flow' || issue.category === 'edge_case' || issue.category === 'responsive' ? 'qa' : issue.category,
         priority: issue.priority,
         impact: issue.impact,
         location: issue.location,
@@ -191,12 +252,9 @@ Based on the URL structure and what you can infer about this type of website, pr
       }));
 
       const { error: issuesError } = await adminClient.from('scan_issues').insert(issueRows);
-      if (issuesError) {
-        console.error('Issues insert error:', issuesError);
-      }
+      if (issuesError) console.error('Issues insert error:', issuesError);
     }
 
-    // Update branding if brand_analysis exists
     if (analysis.brand_analysis && company_name) {
       await adminClient.from('branding').upsert({
         user_id: user.id,
@@ -206,10 +264,7 @@ Based on the URL structure and what you can infer about this type of website, pr
       }, { onConflict: 'user_id' });
     }
 
-    return new Response(JSON.stringify({
-      scan_id: finalScanId,
-      ...analysis,
-    }), {
+    return new Response(JSON.stringify({ scan_id: finalScanId, ...analysis }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 

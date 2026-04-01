@@ -14,18 +14,20 @@ import {
   LogOut,
   Kanban,
   Hash,
+  GitBranch,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 
 const getNavItems = (userType: string | null, companyCode: string | null) => [
-  { path: "/home", label: "Home", icon: Home },
+  { path: "/home", label: "Today's Focus", icon: Home },
   { path: "/branding", label: "Branding", icon: Palette },
   { path: "/analysis", label: "Website Analysis", icon: Globe },
   { path: "/media", label: "Media Footprint", icon: Newspaper },
   { path: "/actions", label: userType === "dev_team" ? "Dev Board" : "Action Center", icon: userType === "dev_team" ? Kanban : Target },
   { path: "/editor", label: "Visual Editor", icon: Paintbrush },
+  { path: "/flows", label: "Flow & Logic", icon: GitBranch },
   { path: "/settings", label: "Settings", icon: Settings },
 ];
 

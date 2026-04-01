@@ -14,6 +14,7 @@ import WebsiteAnalysis from "./pages/WebsiteAnalysis";
 import MediaFootprint from "./pages/MediaFootprint";
 import ActionCenter from "./pages/ActionCenter";
 import VisualEditor from "./pages/VisualEditor";
+import FlowLogicView from "./pages/FlowLogicView";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
 
@@ -50,6 +51,7 @@ const App = () => (
               <Route path="/media" element={<MediaFootprint />} />
               <Route path="/actions" element={<ActionCenter />} />
               <Route path="/editor" element={<VisualEditor />} />
+              <Route path="/flows" element={<FlowLogicView />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
