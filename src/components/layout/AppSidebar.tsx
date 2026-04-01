@@ -14,6 +14,7 @@ import {
   LogOut,
   Kanban,
   Hash,
+  GitBranch,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
