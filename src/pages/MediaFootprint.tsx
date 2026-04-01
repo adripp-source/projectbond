@@ -19,12 +19,21 @@ interface KeyCustomer {
   relevance: string;
 }
 
+interface Suggestion {
+  title: string;
+  description: string;
+  category: string;
+  priority: string;
+  linked_complaint?: string;
+}
+
 interface MediaAnalysis {
   sentiment: { positive: number; neutral: number; negative: number };
   overall_score: number;
-  complaints: Array<{ topic: string; mentions: number; trend: string }>;
+  complaints: Array<{ topic: string; mentions: number; trend: string; platform?: string }>;
   customer_groups: Array<{ name: string; description: string; percentage: number }>;
   key_customers?: KeyCustomer[];
+  suggestions?: Suggestion[];
   improvements: string[];
   sentiment_over_time: Array<{ period: string; positive: number; neutral: number; negative: number }>;
 }
