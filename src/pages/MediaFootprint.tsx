@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Newspaper, ThumbsUp, ThumbsDown, Minus, Lightbulb, Loader2, Users, Plus, Trash2, Globe, User, ExternalLink } from "lucide-react";
+import { Newspaper, ThumbsUp, ThumbsDown, Minus, Lightbulb, Loader2, Users, Plus, Trash2, Globe, User, ExternalLink, Sparkles, ArrowRight } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
