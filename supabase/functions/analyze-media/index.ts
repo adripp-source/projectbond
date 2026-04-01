@@ -58,33 +58,53 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: 'You are an expert brand and media analyst. Analyze companies based on their name and social presence, providing realistic and insightful sentiment analysis, complaint patterns, customer groups, and actionable improvement suggestions.'
+            content: `You are an expert brand strategist, media analyst, and product advisor. You analyze companies across social platforms (YouTube, X, Instagram, TikTok, Facebook, LinkedIn, Reddit) and provide:
+
+1. Deep sentiment analysis with realistic numbers
+2. Customer group segmentation with percentages
+3. Key individual customers/influencers/advocates with real-looking profiles
+4. Common complaints with mention counts and trends
+5. ACTIONABLE SUGGESTIONS — this is the MOST IMPORTANT part:
+   - What features to add to their product
+   - What content to create
+   - What UX to improve
+   - What messaging to fix
+   - Specific marketing campaigns to run
+   - Competitor gaps to exploit
+
+Each suggestion should be specific, actionable, and linked to a real complaint or opportunity.
+Example suggestions:
+- "Add an onboarding tutorial — 23% of complaints mention confusion on first use"
+- "Improve pricing page clarity — negative sentiment around hidden costs is rising"
+- "Create video content for TikTok — your 18-25 demographic is underserved"
+
+For key_customers, generate realistic-looking profiles with names, titles, companies. Use LinkedIn-style professional photo URLs from ui-avatars.com.`
           },
           {
             role: 'user',
-            content: `Analyze the media footprint and brand perception for: ${company_name}${socials ? `\nSocial handles: ${socials}` : ''}
+            content: `Analyze the full media footprint for: ${company_name}${socials ? `\nSocial handles: ${socials}` : ''}
 
-Based on what you can infer about this company and industry, provide a realistic media sentiment analysis including common customer complaints, audience segments, and specific actionable improvements.`
+Provide comprehensive analysis across YouTube, X, Instagram, TikTok, Facebook, LinkedIn, and Reddit. Include 8-12 actionable suggestions that connect media sentiment to product improvements.`
           }
         ],
         tools: [{
           type: 'function',
           function: {
             name: 'media_analysis',
-            description: 'Return structured media footprint analysis',
+            description: 'Return structured media footprint analysis with suggestion engine',
             parameters: {
               type: 'object',
               properties: {
                 sentiment: {
                   type: 'object',
                   properties: {
-                    positive: { type: 'integer', description: 'Positive sentiment percentage 0-100' },
-                    neutral: { type: 'integer', description: 'Neutral sentiment percentage 0-100' },
-                    negative: { type: 'integer', description: 'Negative sentiment percentage 0-100' }
+                    positive: { type: 'integer' },
+                    neutral: { type: 'integer' },
+                    negative: { type: 'integer' }
                   },
                   required: ['positive', 'neutral', 'negative']
                 },
-                overall_score: { type: 'integer', description: 'Overall sentiment score 0-100' },
+                overall_score: { type: 'integer' },
                 complaints: {
                   type: 'array',
                   items: {
@@ -92,7 +112,8 @@ Based on what you can infer about this company and industry, provide a realistic
                     properties: {
                       topic: { type: 'string' },
                       mentions: { type: 'integer' },
-                      trend: { type: 'string', enum: ['rising', 'stable', 'declining'] }
+                      trend: { type: 'string', enum: ['rising', 'stable', 'declining'] },
+                      platform: { type: 'string', description: 'Primary platform: YouTube, X, Instagram, TikTok, Facebook, LinkedIn, Reddit' }
                     },
                     required: ['topic', 'mentions', 'trend']
                   }
@@ -111,19 +132,33 @@ Based on what you can infer about this company and industry, provide a realistic
                 },
                 key_customers: {
                   type: 'array',
-                  description: 'Notable individual customers, influencers, or brand advocates with public profiles',
                   items: {
                     type: 'object',
                     properties: {
                       full_name: { type: 'string' },
-                      title: { type: 'string', description: 'Job title or role' },
+                      title: { type: 'string' },
                       company: { type: 'string' },
-                      linkedin_url: { type: 'string', description: 'LinkedIn profile URL if available' },
+                      linkedin_url: { type: 'string' },
                       twitter_handle: { type: 'string' },
-                      avatar_url: { type: 'string', description: 'Public profile picture URL if known' },
-                      relevance: { type: 'string', description: 'Why this person is relevant to the brand' }
+                      avatar_url: { type: 'string' },
+                      relevance: { type: 'string' }
                     },
                     required: ['full_name', 'title', 'relevance']
+                  }
+                },
+                suggestions: {
+                  type: 'array',
+                  description: 'Actionable product/content/UX/marketing suggestions linked to media insights',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      title: { type: 'string', description: 'Short actionable title' },
+                      description: { type: 'string', description: 'Detailed explanation with data backing' },
+                      category: { type: 'string', enum: ['feature', 'content', 'ux', 'messaging', 'marketing', 'competitive'] },
+                      priority: { type: 'string', enum: ['high', 'medium', 'low'] },
+                      linked_complaint: { type: 'string', description: 'Which complaint or insight this addresses' }
+                    },
+                    required: ['title', 'description', 'category', 'priority']
                   }
                 },
                 improvements: {
@@ -144,7 +179,7 @@ Based on what you can infer about this company and industry, provide a realistic
                   }
                 }
               },
-              required: ['sentiment', 'overall_score', 'complaints', 'customer_groups', 'key_customers', 'improvements', 'sentiment_over_time']
+              required: ['sentiment', 'overall_score', 'complaints', 'customer_groups', 'key_customers', 'suggestions', 'improvements', 'sentiment_over_time']
             }
           }
         }],
@@ -172,20 +207,14 @@ Based on what you can infer about this company and industry, provide a realistic
 
     const analysis = JSON.parse(toolCall.function.arguments);
 
-    // Store in latest scan's media_analysis
     const adminClient = createClient(
       Deno.env.get('SUPABASE_URL')!,
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
     );
 
-    // Update latest scan with media analysis
     const { data: latestScan } = await adminClient
-      .from('scans')
-      .select('id')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .single();
+      .from('scans').select('id').eq('user_id', user.id)
+      .order('created_at', { ascending: false }).limit(1).single();
 
     if (latestScan) {
       await adminClient.from('scans').update({
