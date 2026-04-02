@@ -40,7 +40,9 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
-    const targetPrompt = target_type === 'dev'
+    const targetPrompt = target_type === 'replication'
+      ? 'Provide clear reproduction steps in this format:\n\n**Steps to Reproduce:**\n1. ...\n\n**Expected Behavior:**\n...\n\n**Actual Behavior:**\n...\n\n**Environment:** Browser/device info if relevant.'
+      : target_type === 'dev'
       ? 'Provide detailed technical implementation steps for a development team.'
       : target_type === 'code'
       ? 'Provide ready-to-use code (HTML/CSS/JS or React/Tailwind) that fixes this issue.'
