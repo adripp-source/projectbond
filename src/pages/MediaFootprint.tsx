@@ -89,7 +89,7 @@ const MediaFootprint = () => {
     if (!newUrl.trim() || !user) return;
     setAdding(true);
     try {
-      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "media" }).select("id, url, name").single();
+      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "general" }).select("id, url, name").single();
       if (error) throw error;
       if (data) setWebsites(prev => [...prev, data]);
       setNewUrl(""); toast.success("URL added");

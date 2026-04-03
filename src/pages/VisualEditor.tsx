@@ -117,7 +117,7 @@ const VisualEditor = () => {
     try {
       const { data, error } = await supabase
         .from("websites")
-        .insert({ user_id: user.id, url: newUrl.trim(), section: "editor" })
+        .insert({ user_id: user.id, url: newUrl.trim(), section: "general" })
         .select("id, url, name")
         .single();
       if (error) throw error;
