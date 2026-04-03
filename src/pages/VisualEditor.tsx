@@ -99,7 +99,7 @@ const VisualEditor = () => {
       .from("websites")
       .select("id, url, name")
       .eq("user_id", user.id)
-      .eq("section", "editor")
+      .order("created_at", { ascending: false })
       .then(({ data }) => {
         if (data) {
           setWebsites(data);
