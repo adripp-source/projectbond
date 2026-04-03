@@ -41,7 +41,7 @@ const WebsiteAnalysis = () => {
   const loadData = async () => {
     if (!user) return;
     const [websiteRes, scanRes] = await Promise.all([
-      supabase.from("websites").select("id, url, name").eq("user_id", user.id),
+      supabase.from("websites").select("id, url, name").eq("user_id", user.id).order("created_at", { ascending: false }),
       supabase.from("scans").select("id, health_score, security_score").eq("user_id", user.id).order("created_at", { ascending: false }).limit(1).single(),
     ]);
     if (websiteRes.data) setWebsites(websiteRes.data);
