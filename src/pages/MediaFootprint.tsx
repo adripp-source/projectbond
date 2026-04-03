@@ -70,7 +70,7 @@ const MediaFootprint = () => {
       supabase.from("scans").select("media_analysis").eq("user_id", user.id)
         .not("media_analysis", "is", null).order("created_at", { ascending: false }).limit(1).single(),
       supabase.from("branding").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("websites").select("id, url, name").eq("user_id", user.id).eq("section", "media"),
+      supabase.from("websites").select("id, url, name").eq("user_id", user.id).order("created_at", { ascending: false }),
     ]).then(([scanRes, brandingRes, websiteRes]) => {
       if (scanRes.data?.media_analysis) setAnalysis(scanRes.data.media_analysis as unknown as MediaAnalysis);
       if (brandingRes.data) {
