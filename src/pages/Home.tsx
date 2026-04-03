@@ -3,12 +3,13 @@ import { motion } from "framer-motion";
 import {
   Shield, HeartPulse, MessageCircle, TrendingUp, Loader2, RefreshCw,
   CheckCircle2, AlertTriangle, XCircle, ArrowUpRight, ArrowDownRight,
-  Minus, BarChart3, Clock, Zap
+  Minus, BarChart3, Clock, Zap, Globe, Palette, Newspaper, Paintbrush
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Bar, BarChart } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
