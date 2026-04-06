@@ -14,6 +14,8 @@ const userTypeLabels: Record<string, { label: string; icon: any }> = {
   nocode: { label: "I use no-code tools", icon: Blocks },
 };
 
+const RESTART_WORD = "RESTART";
+
 const SettingsPage = () => {
   const { user } = useAuth();
   const [displayName, setDisplayName] = useState("");
@@ -26,6 +28,56 @@ const SettingsPage = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [showRestart, setShowRestart] = useState(false);
+  const [restartWord, setRestartWord] = useState("");
+  const [restartPassword, setRestartPassword] = useState("");
+  const [restarting, setRestarting] = useState(false);
+
+  const handleRestartAccount = async () => {
+    if (restartWord !== RESTART_WORD) {
+      toast.error(`Please type "${RESTART_WORD}" exactly to confirm`);
+      return;
+    }
+    if (!restartPassword || restartPassword.length < 6) {
+      toast.error("Enter your password to confirm");
+      return;
+    }
+    if (!user?.email) return;
+
+    setRestarting(true);
+    try {
+      // Re-authenticate
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: restartPassword,
+      });
+      if (authErr) throw new Error("Incorrect password");
+
+      // Delete user data
+      await Promise.all([
+        supabase.from("scan_issues").delete().eq("user_id", user.id),
+        supabase.from("scans").delete().eq("user_id", user.id),
+        supabase.from("websites").delete().eq("user_id", user.id),
+        supabase.from("branding").delete().eq("user_id", user.id),
+      ]);
+
+      // Reset profile
+      await supabase
+        .from("profiles")
+        .update({ onboarding_completed: false, display_name: null, user_type: null, workspace_id: null } as any)
+        .eq("user_id", user.id);
+
+      toast.success("Account reset! Redirecting to onboarding...");
+      setShowRestart(false);
+      setRestartWord("");
+      setRestartPassword("");
+      window.location.href = "/onboarding";
+    } catch (e: any) {
+      toast.error(e.message || "Reset failed");
+    } finally {
+      setRestarting(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
