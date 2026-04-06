@@ -14,6 +14,8 @@ const userTypeLabels: Record<string, { label: string; icon: any }> = {
   nocode: { label: "I use no-code tools", icon: Blocks },
 };
 
+const RESTART_WORD = "RESTART";
+
 const SettingsPage = () => {
   const { user } = useAuth();
   const [displayName, setDisplayName] = useState("");
@@ -26,6 +28,56 @@ const SettingsPage = () => {
   const [qrCode, setQrCode] = useState<string | null>(null);
   const [verifyCode, setVerifyCode] = useState("");
   const [mfaFactorId, setMfaFactorId] = useState<string | null>(null);
+  const [showRestart, setShowRestart] = useState(false);
+  const [restartWord, setRestartWord] = useState("");
+  const [restartPassword, setRestartPassword] = useState("");
+  const [restarting, setRestarting] = useState(false);
+
+  const handleRestartAccount = async () => {
+    if (restartWord !== RESTART_WORD) {
+      toast.error(`Please type "${RESTART_WORD}" exactly to confirm`);
+      return;
+    }
+    if (!restartPassword || restartPassword.length < 6) {
+      toast.error("Enter your password to confirm");
+      return;
+    }
+    if (!user?.email) return;
+
+    setRestarting(true);
+    try {
+      // Re-authenticate
+      const { error: authErr } = await supabase.auth.signInWithPassword({
+        email: user.email,
+        password: restartPassword,
+      });
+      if (authErr) throw new Error("Incorrect password");
+
+      // Delete user data
+      await Promise.all([
+        supabase.from("scan_issues").delete().eq("user_id", user.id),
+        supabase.from("scans").delete().eq("user_id", user.id),
+        supabase.from("websites").delete().eq("user_id", user.id),
+        supabase.from("branding").delete().eq("user_id", user.id),
+      ]);
+
+      // Reset profile
+      await supabase
+        .from("profiles")
+        .update({ onboarding_completed: false, display_name: null, user_type: null, workspace_id: null } as any)
+        .eq("user_id", user.id);
+
+      toast.success("Account reset! Redirecting to onboarding...");
+      setShowRestart(false);
+      setRestartWord("");
+      setRestartPassword("");
+      window.location.href = "/onboarding";
+    } catch (e: any) {
+      toast.error(e.message || "Reset failed");
+    } finally {
+      setRestarting(false);
+    }
+  };
 
   useEffect(() => {
     if (!user) return;
@@ -302,6 +354,78 @@ const SettingsPage = () => {
               <Switch defaultChecked />
             </div>
           </div>
+        </div>
+
+        {/* Restart Account */}
+        <div className="bg-card border border-destructive/30 rounded-lg p-6 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Shield className="w-4 h-4 text-destructive" />
+            <h3 className="text-sm font-semibold text-foreground">Danger Zone</h3>
+          </div>
+
+          {!showRestart ? (
+            <div className="flex items-center justify-between max-w-lg">
+              <div>
+                <p className="text-sm text-foreground">Restart Account</p>
+                <p className="text-xs text-muted-foreground">Delete all data and start fresh from onboarding</p>
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setShowRestart(true)}
+                className="border-destructive text-destructive hover:bg-destructive/10"
+              >
+                Restart
+              </Button>
+            </div>
+          ) : (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: "auto" }}
+              className="max-w-lg space-y-3"
+            >
+              <p className="text-sm text-destructive font-medium">
+                This will permanently delete all your scans, issues, websites, and branding data.
+              </p>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">
+                  Type <span className="font-mono font-bold text-foreground">{RESTART_WORD}</span> to confirm
+                </label>
+                <Input
+                  value={restartWord}
+                  onChange={(e) => setRestartWord(e.target.value)}
+                  placeholder={RESTART_WORD}
+                  className="bg-secondary border-border text-foreground font-mono"
+                />
+              </div>
+              <div>
+                <label className="text-xs text-muted-foreground mb-1 block">Enter your password</label>
+                <Input
+                  type="password"
+                  value={restartPassword}
+                  onChange={(e) => setRestartPassword(e.target.value)}
+                  placeholder="Password"
+                  className="bg-secondary border-border text-foreground"
+                />
+              </div>
+              <div className="flex gap-2">
+                <Button
+                  onClick={handleRestartAccount}
+                  disabled={restarting || restartWord !== RESTART_WORD || !restartPassword}
+                  className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                >
+                  {restarting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+                  Confirm Restart
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => { setShowRestart(false); setRestartWord(""); setRestartPassword(""); }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </motion.div>
+          )}
         </div>
 
         <Button
