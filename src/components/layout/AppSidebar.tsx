@@ -1,13 +1,26 @@
-import { NavLink, useLocation, useNavigate } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { NavLink, useLocation } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  Home, Palette, Globe, Newspaper, Target, Paintbrush, Settings,
-  ChevronLeft, Zap, LogOut, Kanban, Hash, GitBranch,
+  Home,
+  Palette,
+  Globe,
+  Newspaper,
+  Target,
+  Paintbrush,
+  Settings,
+  ChevronLeft,
+  Zap,
+  LogOut,
+  Kanban,
+  Hash,
+  GitBranch,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkspace } from "@/contexts/WorkspaceContext";
+import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 
-const getNavItems = (userType: string | null) => [
+const getNavItems = (userType: string | null, companyCode: string | null) => [
   { path: "/home", label: "Today's Focus", icon: Home },
   { path: "/branding", label: "Branding", icon: Palette },
   { path: "/analysis", label: "Website Analysis", icon: Globe },
@@ -19,26 +32,34 @@ const getNavItems = (userType: string | null) => [
 ];
 
 const AppSidebar = () => {
+  const [collapsed, setCollapsed] = useState(false);
+  const [userType, setUserType] = useState<string | null>(null);
+  const [companyCode, setCompanyCode] = useState<string | null>(null);
   const location = useLocation();
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const navigate = useNavigate();
-  const {
-    userType, companyCode, displayName, healthScore, issueCount,
-    sidebarCollapsed, setSidebarCollapsed,
-  } = useWorkspace();
 
-  const navItems = getNavItems(userType);
+  useEffect(() => {
+    if (!user) return;
+    supabase.from("profiles").select("user_type, workspace_id").eq("user_id", user.id).single().then(async ({ data }) => {
+      setUserType((data as any)?.user_type ?? null);
+      if ((data as any)?.workspace_id) {
+        const { data: ws } = await supabase.from("workspaces").select("company_code").eq("id", (data as any).workspace_id).single();
+        setCompanyCode((ws as any)?.company_code ?? null);
+      }
+    });
+  }, [user]);
+
+  const navItems = getNavItems(userType, companyCode);
 
   const handleSignOut = async () => {
     await signOut();
     navigate("/auth");
   };
 
-  const scoreColor = (healthScore ?? 0) >= 75 ? "text-success" : (healthScore ?? 0) >= 50 ? "text-warning" : "text-destructive";
-
   return (
     <motion.aside
-      animate={{ width: sidebarCollapsed ? 72 : 240 }}
+      animate={{ width: collapsed ? 72 : 240 }}
       transition={{ duration: 0.2, ease: "easeInOut" }}
       className="fixed left-0 top-0 h-screen bg-sidebar border-r border-sidebar-border flex flex-col z-50"
     >
@@ -48,49 +69,46 @@ const AppSidebar = () => {
           <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center flex-shrink-0">
             <Zap className="w-4 h-4 text-primary-foreground" />
           </div>
-          {!sidebarCollapsed && (
-            <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              className="text-foreground font-semibold text-sm tracking-tight whitespace-nowrap">
+          {!collapsed && (
+            <motion.span
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-foreground font-semibold text-sm tracking-tight whitespace-nowrap"
+            >
               Project Bond
             </motion.span>
           )}
         </div>
       </div>
 
-      {/* Quick status bar */}
-      {!sidebarCollapsed && healthScore !== null && (
-        <div className="px-3 py-2 border-b border-sidebar-border">
-          <div className="flex items-center justify-between px-3 py-1.5 rounded-md bg-sidebar-accent/30">
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${(healthScore ?? 0) >= 75 ? "bg-success" : (healthScore ?? 0) >= 50 ? "bg-warning" : "bg-destructive"}`} />
-              <span className="text-xs text-muted-foreground">Health</span>
-              <span className={`text-xs font-bold ${scoreColor}`}>{healthScore}</span>
-            </div>
-            {issueCount > 0 && (
-              <span className="text-[10px] text-destructive font-medium">{issueCount} issues</span>
-            )}
-          </div>
-        </div>
-      )}
-
       {/* Nav */}
       <nav className="flex-1 py-3 px-3 space-y-0.5 overflow-hidden">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path;
           return (
-            <NavLink key={item.path} to={item.path} className="block">
-              <div className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 ${
-                isActive
-                  ? "bg-sidebar-accent text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
-              }`}>
+            <NavLink
+              key={item.path}
+              to={item.path}
+              className="block"
+            >
+              <div
+                className={`flex items-center gap-3 px-3 py-2 rounded-md text-sm transition-all duration-150 ${
+                  isActive
+                    ? "bg-sidebar-accent text-sidebar-accent-foreground"
+                    : "text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50"
+                }`}
+              >
                 <item.icon className={`w-4 h-4 flex-shrink-0 ${isActive ? "text-primary" : ""}`} />
-                {!sidebarCollapsed && (
-                  <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="whitespace-nowrap">
+                {!collapsed && (
+                  <motion.span
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    className="whitespace-nowrap"
+                  >
                     {item.label}
                   </motion.span>
                 )}
-                {isActive && !sidebarCollapsed && (
+                {isActive && !collapsed && (
                   <div className="ml-auto w-1.5 h-1.5 rounded-full bg-primary" />
                 )}
               </div>
@@ -99,34 +117,33 @@ const AppSidebar = () => {
         })}
       </nav>
 
-      {/* User info + company code */}
-      {!sidebarCollapsed && (
-        <div className="px-3 py-2 border-t border-sidebar-border space-y-1">
-          {displayName && (
-            <div className="px-3 py-1 text-xs text-muted-foreground truncate">
-              👋 {displayName}
-            </div>
-          )}
-          {companyCode && (
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-sidebar-accent/30">
-              <Hash className="w-3 h-3 text-primary flex-shrink-0" />
-              <span className="text-[10px] text-muted-foreground">Team Code:</span>
-              <span className="text-xs font-mono font-bold text-primary">{companyCode}</span>
-            </div>
-          )}
+      {/* Company code */}
+      {companyCode && !collapsed && (
+        <div className="px-3 py-2 border-t border-sidebar-border">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-md bg-sidebar-accent/30">
+            <Hash className="w-3 h-3 text-primary flex-shrink-0" />
+            <span className="text-[10px] text-muted-foreground">Team Code:</span>
+            <span className="text-xs font-mono font-bold text-primary">{companyCode}</span>
+          </div>
         </div>
       )}
 
       {/* Bottom actions */}
       <div className="p-3 border-t border-sidebar-border space-y-1">
-        <button onClick={handleSignOut}
-          className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground hover:text-destructive hover:bg-sidebar-accent/50 transition-colors">
+        <button
+          onClick={handleSignOut}
+          className="w-full flex items-center gap-3 px-3 py-2 rounded-md text-sm text-sidebar-foreground hover:text-destructive hover:bg-sidebar-accent/50 transition-colors"
+        >
           <LogOut className="w-4 h-4 flex-shrink-0" />
-          {!sidebarCollapsed && <span>Sign Out</span>}
+          {!collapsed && <span>Sign Out</span>}
         </button>
-        <button onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-          className="w-full flex items-center justify-center p-2 rounded-md text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-colors">
-          <ChevronLeft className={`w-4 h-4 transition-transform duration-200 ${sidebarCollapsed ? "rotate-180" : ""}`} />
+        <button
+          onClick={() => setCollapsed(!collapsed)}
+          className="w-full flex items-center justify-center p-2 rounded-md text-sidebar-foreground hover:text-sidebar-accent-foreground hover:bg-sidebar-accent/50 transition-colors"
+        >
+          <ChevronLeft
+            className={`w-4 h-4 transition-transform duration-200 ${collapsed ? "rotate-180" : ""}`}
+          />
         </button>
       </div>
     </motion.aside>

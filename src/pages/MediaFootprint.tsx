@@ -70,7 +70,7 @@ const MediaFootprint = () => {
       supabase.from("scans").select("media_analysis").eq("user_id", user.id)
         .not("media_analysis", "is", null).order("created_at", { ascending: false }).limit(1).single(),
       supabase.from("branding").select("*").eq("user_id", user.id).maybeSingle(),
-      supabase.from("websites").select("id, url, name").eq("user_id", user.id).order("created_at", { ascending: false }),
+      supabase.from("websites").select("id, url, name").eq("user_id", user.id).eq("section", "media"),
     ]).then(([scanRes, brandingRes, websiteRes]) => {
       if (scanRes.data?.media_analysis) setAnalysis(scanRes.data.media_analysis as unknown as MediaAnalysis);
       if (brandingRes.data) {
@@ -89,7 +89,7 @@ const MediaFootprint = () => {
     if (!newUrl.trim() || !user) return;
     setAdding(true);
     try {
-      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "general" }).select("id, url, name").single();
+      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "media" }).select("id, url, name").single();
       if (error) throw error;
       if (data) setWebsites(prev => [...prev, data]);
       setNewUrl(""); toast.success("URL added");

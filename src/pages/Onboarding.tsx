@@ -105,35 +105,42 @@ const Onboarding = () => {
     setCodeError("");
 
     try {
-      // Use secure RPC function to join
-      const { data: wsId, error } = await supabase.rpc("join_workspace_by_code", {
-        _code: companyCode.trim(),
-      });
+      // Find workspace by code
+      const { data: ws, error } = await supabase
+        .from("workspaces")
+        .select("*")
+        .eq("company_code", companyCode.trim())
+        .maybeSingle();
 
-      if (error) {
-        if (error.message.includes("Invalid company code")) {
-          setCodeError("Invalid company code");
-          return;
-        }
-        throw error;
+      if (error) throw error;
+      if (!ws) {
+        setCodeError("Invalid company code");
+        return;
+      }
+
+      // Check if already a member
+      const { data: existing } = await supabase
+        .from("workspace_members")
+        .select("id")
+        .eq("workspace_id", ws.id)
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (!existing) {
+        await supabase
+          .from("workspace_members")
+          .insert({ workspace_id: ws.id, user_id: user.id, role: "member" });
       }
 
       // Link profile
       await supabase
         .from("profiles")
-        .update({ workspace_id: wsId } as any)
+        .update({ workspace_id: ws.id } as any)
         .eq("user_id", user.id);
 
-      // Fetch workspace name for display
-      const { data: ws } = await supabase
-        .from("workspaces")
-        .select("company_name")
-        .eq("id", wsId)
-        .single();
-
-      setCompanyName((ws as any)?.company_name || "");
+      setCompanyName(ws.company_name);
       setStep("input");
-      toast.success(`Joined ${(ws as any)?.company_name || "workspace"}!`);
+      toast.success(`Joined ${ws.company_name}!`);
     } catch (err: any) {
       toast.error(err.message || "Failed to join workspace");
     }

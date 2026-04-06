@@ -3,13 +3,12 @@ import { motion } from "framer-motion";
 import {
   Shield, HeartPulse, MessageCircle, TrendingUp, Loader2, RefreshCw,
   CheckCircle2, AlertTriangle, XCircle, ArrowUpRight, ArrowDownRight,
-  Minus, BarChart3, Clock, Zap, Globe, Palette, Newspaper, Paintbrush
+  Minus, BarChart3, Clock, Zap
 } from "lucide-react";
 import { Link } from "react-router-dom";
-import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
+import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip, Bar, BarChart } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { useWorkspace } from "@/contexts/WorkspaceContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -335,25 +334,6 @@ const Home = () => {
         </motion.div>
       )}
 
-      {/* Quick Links - Connected Interface */}
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.35 }}
-        className="grid grid-cols-4 gap-3 mb-6">
-        {[
-          { to: "/analysis", icon: Globe, label: "Run Scan", desc: "QA + Security" },
-          { to: "/branding", icon: Palette, label: "Branding", desc: "Identity & socials" },
-          { to: "/media", icon: Newspaper, label: "Media", desc: "Sentiment & PR" },
-          { to: "/editor", icon: Paintbrush, label: "Visual Editor", desc: "Edit your site" },
-        ].map((link) => (
-          <Link key={link.to} to={link.to}>
-            <div className="bg-card border border-border rounded-lg p-4 shadow-card hover:border-primary/30 transition-colors group cursor-pointer">
-              <link.icon className="w-5 h-5 text-muted-foreground group-hover:text-primary transition-colors mb-2" />
-              <p className="text-sm font-medium text-foreground">{link.label}</p>
-              <p className="text-xs text-muted-foreground">{link.desc}</p>
-            </div>
-          </Link>
-        ))}
-      </motion.div>
-
       {/* Issue Stats */}
       <div className="grid grid-cols-4 gap-4">
         {[
@@ -362,15 +342,13 @@ const Home = () => {
           { label: "Total Issues", count: issues.length, dot: "bg-primary", color: "text-primary" },
           { label: "Fixed", count: fixedIssues.length, dot: "bg-success", color: "text-success" },
         ].map(item => (
-          <Link key={item.label} to="/actions">
-            <div className="bg-card border border-border rounded-lg p-4 shadow-card hover:border-primary/30 transition-colors cursor-pointer">
-              <div className="flex items-center gap-2 mb-1">
-                <div className={`w-2 h-2 rounded-full ${item.dot}`} />
-                <span className="text-sm text-muted-foreground">{item.label}</span>
-              </div>
-              <span className={`text-2xl font-bold ${item.color}`}>{item.count}</span>
+          <div key={item.label} className="bg-card border border-border rounded-lg p-4 shadow-card">
+            <div className="flex items-center gap-2 mb-1">
+              <div className={`w-2 h-2 rounded-full ${item.dot}`} />
+              <span className="text-sm text-muted-foreground">{item.label}</span>
             </div>
-          </Link>
+            <span className={`text-2xl font-bold ${item.color}`}>{item.count}</span>
+          </div>
         ))}
       </div>
     </div>

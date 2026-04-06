@@ -1,17 +1,11 @@
 import { Outlet } from "react-router-dom";
 import AppSidebar from "./AppSidebar";
-import { useWorkspace } from "@/contexts/WorkspaceContext";
 
 const AppLayout = () => {
-  const { sidebarCollapsed } = useWorkspace();
-
   return (
     <div className="min-h-screen bg-background">
       <AppSidebar />
-      <main
-        className="min-h-screen transition-all duration-200 ease-in-out"
-        style={{ marginLeft: sidebarCollapsed ? 72 : 240 }}
-      >
+      <main className="ml-[240px] min-h-screen">
         <Outlet />
       </main>
     </div>

@@ -357,7 +357,6 @@ export type Database = {
     }
     Functions: {
       generate_company_code: { Args: never; Returns: string }
-      join_workspace_by_code: { Args: { _code: string }; Returns: string }
     }
     Enums: {
       [_ in never]: never
