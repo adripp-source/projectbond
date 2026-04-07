@@ -38,21 +38,10 @@ const SettingsPage = () => {
       toast.error(`Please type "${RESTART_WORD}" exactly to confirm`);
       return;
     }
-    if (!restartPassword || restartPassword.length < 6) {
-      toast.error("Enter your password to confirm");
-      return;
-    }
-    if (!user?.email) return;
+    if (!user) return;
 
     setRestarting(true);
     try {
-      // Re-authenticate
-      const { error: authErr } = await supabase.auth.signInWithPassword({
-        email: user.email,
-        password: restartPassword,
-      });
-      if (authErr) throw new Error("Incorrect password");
-
       // Delete user data
       await Promise.all([
         supabase.from("scan_issues").delete().eq("user_id", user.id),
@@ -398,20 +387,10 @@ const SettingsPage = () => {
                   className="bg-secondary border-border text-foreground font-mono"
                 />
               </div>
-              <div>
-                <label className="text-xs text-muted-foreground mb-1 block">Enter your password</label>
-                <Input
-                  type="password"
-                  value={restartPassword}
-                  onChange={(e) => setRestartPassword(e.target.value)}
-                  placeholder="Password"
-                  className="bg-secondary border-border text-foreground"
-                />
-              </div>
               <div className="flex gap-2">
                 <Button
                   onClick={handleRestartAccount}
-                  disabled={restarting || restartWord !== RESTART_WORD || !restartPassword}
+                  disabled={restarting || restartWord !== RESTART_WORD}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
                 >
                   {restarting ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
