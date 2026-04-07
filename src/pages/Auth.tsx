@@ -197,10 +197,12 @@ const Auth = () => {
           </Button>
         </form>
 
-        {/* 2FA note */}
-        <p className="text-center text-xs text-muted-foreground mt-4 opacity-60">
-          2FA / MFA can be enabled in Settings after login
-        </p>
+        {/* Forgot password */}
+        {isLogin && (
+          <p className="text-center text-xs text-muted-foreground mt-3">
+            <a href="/forgot-password" className="text-primary hover:underline">Forgot your password?</a>
+          </p>
+        )}
 
         {/* Toggle */}
         <p className="text-center text-sm text-muted-foreground mt-5">
