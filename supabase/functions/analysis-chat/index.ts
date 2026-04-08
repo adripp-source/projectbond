@@ -30,7 +30,7 @@ serve(async (req) => {
       });
     }
 
-    const { question, run_security_test } = await req.json();
+    const { question, run_security_test, context_type, extra_context } = await req.json();
     if (!question) {
       return new Response(JSON.stringify({ error: 'Question is required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -99,10 +99,19 @@ ${issues.map(i => `- [${i.priority}] ${i.title}: ${i.description}`).join('\n')}
         messages: [
           {
             role: 'system',
-            content: `You are a website analysis assistant for Project Bond. You help users understand their website's health, security, and performance issues. Answer questions based on scan data. Be concise but helpful. If the user asks about security and no scan exists, suggest running one.
+            content: `You are a Project Bond AI assistant. Your current role: ${
+              context_type === 'home' ? 'Growth Advisor — help users improve their website, suggest strategy and priorities' :
+              context_type === 'actions' ? 'Issue Expert — help users understand bugs, priorities, and fixes' :
+              context_type === 'editor' ? 'UI Advisor — help with layout, design, and visual improvements' :
+              context_type === 'flow' ? 'Flow Analyst — help users understand user journeys and drop-off points' :
+              context_type === 'analysis' ? 'QA Engineer — help with website health, performance, and security' :
+              context_type === 'media' ? 'Media Analyst — help users understand brand perception and social presence' :
+              context_type === 'branding' ? 'Brand Advisor — help users strengthen their brand identity' :
+              'General Assistant — help users with their website'
+            }. Be concise, practical, and actionable. If no scan data exists, suggest running one.
 
 ${scanContext}
-
+${extra_context ? `\nAdditional context: ${extra_context}` : ''}
 ${securityTestResult ? `Security test status: ${JSON.stringify(securityTestResult)}` : ''}`
           },
           { role: 'user', content: question }
