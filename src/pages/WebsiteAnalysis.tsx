@@ -1,6 +1,7 @@
-import { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, MessageSquare, Send, X, Bot } from "lucide-react";
+import { useState, useEffect } from "react";
+import { motion } from "framer-motion";
+import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2 } from "lucide-react";
+import AIChatBar from "@/components/AIChatBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ActionItem from "@/components/ui/action-item";
@@ -17,7 +18,7 @@ interface IssueData {
   fix_dev: string | null; fix_code: string | null; fix_nocode: string | null;
   fix_content: string | null; fix_visual: string | null;
 }
-interface ChatMsg { role: "user" | "assistant"; content: string; }
+
 
 const WebsiteAnalysis = () => {
   const { user } = useAuth();
@@ -31,12 +32,6 @@ const WebsiteAnalysis = () => {
   const [healthScore, setHealthScore] = useState<number | null>(null);
   const [securityScore, setSecurityScore] = useState<number | null>(null);
   const [scanCount, setScanCount] = useState(0);
-  // Chat
-  const [chatOpen, setChatOpen] = useState(false);
-  const [chatMessages, setChatMessages] = useState<ChatMsg[]>([]);
-  const [chatInput, setChatInput] = useState("");
-  const [chatLoading, setChatLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
   const loadData = async () => {
     if (!user) return;
@@ -61,7 +56,7 @@ const WebsiteAnalysis = () => {
   };
 
   useEffect(() => { loadData(); }, [user]);
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: "smooth" }); }, [chatMessages]);
+  
 
   const addWebsite = async () => {
     if (!newUrl.trim() || !user) return;
@@ -90,44 +85,6 @@ const WebsiteAnalysis = () => {
     } catch (e: any) { toast.error(e.message || "Scan failed"); } finally { setScanning(false); }
   };
 
-  const sendChat = async () => {
-    if (!chatInput.trim()) return;
-    const question = chatInput.trim();
-    setChatInput("");
-    const newMessages: ChatMsg[] = [...chatMessages, { role: "user", content: question }];
-    setChatMessages(newMessages);
-    setChatLoading(true);
-
-    // Check if the question is about security → trigger a test if quota remains
-    const isSecurityQuestion = /security|vulnerab|attack|hack|ssl|xss|csrf|injection|auth/i.test(question);
-    const canRunTest = scanCount < 15;
-
-    try {
-      const { data, error } = await supabase.functions.invoke("analysis-chat", {
-        body: {
-          question,
-          run_security_test: isSecurityQuestion && canRunTest,
-        },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-
-      let answer = data.answer || "I couldn't generate a response.";
-      if (data.securityTestResult?.ran === false) {
-        answer += "\n\n⚠️ " + data.securityTestResult.reason;
-      } else if (data.securityTestResult?.ran) {
-        answer += "\n\n✅ A security check was triggered based on your question.";
-        // Refresh data
-        await loadData();
-      }
-
-      setChatMessages([...newMessages, { role: "assistant", content: answer }]);
-    } catch (e: any) {
-      setChatMessages([...newMessages, { role: "assistant", content: `Error: ${e.message}` }]);
-    } finally {
-      setChatLoading(false);
-    }
-  };
 
   const getFixTypes = (issue: IssueData) => {
     const types: Array<"dev" | "code" | "no-code" | "content" | "visual"> = [];
@@ -231,72 +188,8 @@ const WebsiteAnalysis = () => {
         </div>
       )}
 
-      {/* Chat FAB */}
-      <button onClick={() => setChatOpen(!chatOpen)}
-        className="fixed bottom-6 right-6 z-50 w-14 h-14 rounded-full bg-gradient-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 transition-opacity">
-        {chatOpen ? <X className="w-6 h-6" /> : <Bot className="w-6 h-6" />}
-      </button>
-
-      {/* Chat panel */}
-      <AnimatePresence>
-        {chatOpen && (
-          <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-96 h-[500px] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
-            <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-secondary/50">
-              <Bot className="w-4 h-4 text-primary" />
-              <span className="text-sm font-semibold text-foreground">Analysis Assistant</span>
-              <span className="text-[10px] text-muted-foreground ml-auto">{scanCount}/15 scans left</span>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {chatMessages.length === 0 && (
-                <div className="text-center py-8">
-                  <Bot className="w-8 h-8 text-muted-foreground mx-auto mb-2" />
-                  <p className="text-sm text-muted-foreground">Ask me about your website's health, security, or performance.</p>
-                  <div className="mt-3 space-y-1">
-                    {["Is there a security problem?", "What's my biggest issue?", "How can I improve my score?"].map(q => (
-                      <button key={q} onClick={() => { setChatInput(q); }}
-                        className="block w-full text-left text-xs text-primary hover:underline px-2 py-1">
-                        → {q}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
-              {chatMessages.map((msg, i) => (
-                <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                  <div className={`max-w-[85%] px-3 py-2 rounded-lg text-sm ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-secondary text-foreground"
-                  }`}>
-                    <p className="whitespace-pre-wrap">{msg.content}</p>
-                  </div>
-                </div>
-              ))}
-              {chatLoading && (
-                <div className="flex justify-start">
-                  <div className="bg-secondary px-3 py-2 rounded-lg">
-                    <Loader2 className="w-4 h-4 animate-spin text-muted-foreground" />
-                  </div>
-                </div>
-              )}
-              <div ref={chatEndRef} />
-            </div>
-
-            <div className="border-t border-border p-3 flex gap-2">
-              <Input value={chatInput} onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && sendChat()}
-                placeholder="Ask about your website..."
-                className="bg-secondary border-border text-foreground text-sm" />
-              <Button size="sm" onClick={sendChat} disabled={chatLoading || !chatInput.trim()}
-                className="bg-gradient-primary text-primary-foreground">
-                <Send className="w-4 h-4" />
-              </Button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+      {/* AI Chat Bar */}
+      <AIChatBar context="analysis" placeholder="Ask about your website health..." />
     </div>
   );
 };

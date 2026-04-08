@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Paintbrush, MousePointer2, Type, Square, Code, FileText,
   Plus, Loader2, Trash2, Globe, X, MessageSquare, Undo2, Download,
-  Hand, Crosshair, PlusCircle, Highlighter, Move
+  Hand, Crosshair, PlusCircle, Highlighter, Move, ChevronRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,13 +11,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import AIChatBar from "@/components/AIChatBar";
 
-type ToolType = "browse" | "select" | "highlight" | "text" | "box" | "move";
+type ToolType = "browse" | "cursor" | "highlight" | "text" | "box" | "move";
 
 const toolConfig: { icon: any; label: string; tool: ToolType; tip: string }[] = [
   { icon: Hand, label: "Browse", tool: "browse", tip: "Interact with the page normally" },
+  { icon: MousePointer2, label: "Cursor", tool: "cursor", tip: "Click to select elements — smallest first. Double-click for parent." },
   { icon: Move, label: "Move", tool: "move", tip: "Click and drag annotations to reposition" },
-  { icon: Crosshair, label: "Smart Select", tool: "select", tip: "Click to auto-detect a section" },
   { icon: Highlighter, label: "Highlight", tool: "highlight", tip: "Draw to highlight an area" },
   { icon: Type, label: "Text", tool: "text", tip: "Click to place a text note" },
   { icon: Square, label: "Box", tool: "box", tip: "Draw a new section box" },
@@ -34,36 +35,120 @@ interface Annotation {
   note?: string;
   color: string;
   guessedElement?: string;
+  tagName?: string;
+  breadcrumb?: string[];
 }
 
-interface WebsiteRow {
-  id: string;
-  url: string;
-  name: string | null;
-}
-
-interface ContextMenu {
-  x: number;
-  y: number;
-  canvasX: number;
-  canvasY: number;
-}
+interface WebsiteRow { id: string; url: string; name: string | null; }
 
 const COLORS = [
-  "hsl(217, 91%, 60%)",
-  "hsl(0, 72%, 51%)",
-  "hsl(142, 71%, 45%)",
-  "hsl(38, 92%, 50%)",
-  "hsl(280, 70%, 55%)",
+  "hsl(217, 91%, 60%)", "hsl(0, 72%, 51%)", "hsl(142, 71%, 45%)",
+  "hsl(38, 92%, 50%)", "hsl(280, 70%, 55%)",
 ];
 
-function guessSection(clickY: number, clickX: number, containerW: number, containerH: number) {
-  if (clickY < 80) return { name: "Navigation Bar", x: 0, y: 0, w: containerW, h: 70 };
-  if (clickY > containerH - 200) return { name: "Footer", x: 0, y: containerH - 180, w: containerW, h: 180 };
-  if (clickX < 300 && containerW > 800) return { name: "Sidebar", x: 0, y: 70, w: 280, h: containerH - 250 };
-  if (clickY < 500) return { name: "Hero Section", x: 40, y: 70, w: containerW - 80, h: 420 };
-  return { name: "Content Section", x: 40, y: Math.max(clickY - 150, 70), w: containerW - 80, h: 350 };
-}
+// Injection script for smart element selection inside the iframe
+const INJECTION_SCRIPT = `
+(function() {
+  if (window.__bondInjected) return;
+  window.__bondInjected = true;
+  
+  let hoverEl = null;
+  let hoverOverlay = document.createElement('div');
+  hoverOverlay.id = '__bond_hover';
+  hoverOverlay.style.cssText = 'position:fixed;pointer-events:none;z-index:999999;border:2px solid hsl(217,91%,60%);background:hsla(217,91%,60%,0.08);transition:all 0.1s ease;display:none;';
+  document.body.appendChild(hoverOverlay);
+
+  function getSmallestMeaningful(el) {
+    // Skip body, html, very large containers
+    if (!el || el === document.body || el === document.documentElement) return null;
+    return el;
+  }
+
+  function getBreadcrumb(el) {
+    const path = [];
+    let current = el;
+    while (current && current !== document.body) {
+      let name = current.tagName?.toLowerCase() || '';
+      if (current.id) name += '#' + current.id;
+      else if (current.className && typeof current.className === 'string') {
+        const cls = current.className.split(' ').filter(c => c && !c.startsWith('__')).slice(0, 2).join('.');
+        if (cls) name += '.' + cls;
+      }
+      path.unshift(name);
+      current = current.parentElement;
+    }
+    return path;
+  }
+
+  function describeElement(el) {
+    if (!el) return 'Unknown';
+    const tag = el.tagName?.toLowerCase();
+    if (tag === 'button' || el.role === 'button') return 'Button';
+    if (tag === 'a') return 'Link';
+    if (tag === 'img') return 'Image';
+    if (tag === 'input' || tag === 'textarea') return 'Input Field';
+    if (tag === 'nav') return 'Navigation';
+    if (tag === 'header') return 'Header';
+    if (tag === 'footer') return 'Footer';
+    if (tag === 'h1' || tag === 'h2' || tag === 'h3') return 'Heading';
+    if (tag === 'p') return 'Paragraph';
+    if (tag === 'li') return 'List Item';
+    if (tag === 'form') return 'Form';
+    if (tag === 'section') return 'Section';
+    if (tag === 'div') {
+      // Check size — if small, it's probably a card or component
+      const rect = el.getBoundingClientRect();
+      if (rect.width < 400 && rect.height < 300) return 'Card';
+      if (rect.height < 100) return 'Row';
+      return 'Container';
+    }
+    return tag?.charAt(0).toUpperCase() + tag?.slice(1) || 'Element';
+  }
+
+  document.addEventListener('mousemove', function(e) {
+    const el = getSmallestMeaningful(e.target);
+    if (!el) { hoverOverlay.style.display = 'none'; return; }
+    hoverEl = el;
+    const rect = el.getBoundingClientRect();
+    hoverOverlay.style.display = 'block';
+    hoverOverlay.style.left = rect.left + 'px';
+    hoverOverlay.style.top = rect.top + 'px';
+    hoverOverlay.style.width = rect.width + 'px';
+    hoverOverlay.style.height = rect.height + 'px';
+  }, true);
+
+  document.addEventListener('click', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = getSmallestMeaningful(e.target);
+    if (!el) return;
+    const rect = el.getBoundingClientRect();
+    window.parent.postMessage({
+      type: '__bond_select',
+      x: rect.left, y: rect.top, width: rect.width, height: rect.height,
+      tagName: el.tagName?.toLowerCase(),
+      description: describeElement(el),
+      breadcrumb: getBreadcrumb(el),
+    }, '*');
+  }, true);
+
+  document.addEventListener('dblclick', function(e) {
+    e.preventDefault();
+    e.stopPropagation();
+    const el = e.target?.parentElement;
+    if (!el || el === document.body) return;
+    const rect = el.getBoundingClientRect();
+    window.parent.postMessage({
+      type: '__bond_select',
+      x: rect.left, y: rect.top, width: rect.width, height: rect.height,
+      tagName: el.tagName?.toLowerCase(),
+      description: describeElement(el),
+      breadcrumb: getBreadcrumb(el),
+      isParent: true,
+    }, '*');
+  }, true);
+})();
+`;
 
 const VisualEditor = () => {
   const { user } = useAuth();
@@ -84,22 +169,21 @@ const VisualEditor = () => {
   const [generating, setGenerating] = useState(false);
   const [generatedOutput, setGeneratedOutput] = useState<string | null>(null);
   const [showOutput, setShowOutput] = useState(false);
-  const [contextMenu, setContextMenu] = useState<ContextMenu | null>(null);
-  // Drag state
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; canvasX: number; canvasY: number } | null>(null);
   const [draggingId, setDraggingId] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [hoverPreview, setHoverPreview] = useState<{ x: number; y: number; w: number; h: number; label: string } | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
   const colorIndex = useRef(0);
 
-  const overlayActive = activeTool !== "browse";
+  const overlayActive = activeTool !== "browse" && activeTool !== "cursor";
+  const isCursorMode = activeTool === "cursor";
 
+  // Load websites
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("websites")
-      .select("id, url, name")
-      .eq("user_id", user.id)
-      .eq("section", "editor")
+    supabase.from("websites").select("id, url, name").eq("user_id", user.id).eq("section", "editor")
       .then(({ data }) => {
         if (data) {
           setWebsites(data);
@@ -111,28 +195,66 @@ const VisualEditor = () => {
       });
   }, [user]);
 
+  // Inject script into iframe for cursor mode
+  useEffect(() => {
+    if (!isCursorMode || !iframeRef.current) return;
+    const iframe = iframeRef.current;
+    const inject = () => {
+      try {
+        iframe.contentWindow?.postMessage({ type: '__bond_inject', script: INJECTION_SCRIPT }, '*');
+      } catch {
+        // Cross-origin — fall back to overlay-based selection
+      }
+    };
+    // Try injecting after load
+    iframe.addEventListener('load', inject);
+    inject();
+    return () => iframe.removeEventListener('load', inject);
+  }, [isCursorMode, activeUrl]);
+
+  // Listen for messages from iframe
+  useEffect(() => {
+    const handler = (e: MessageEvent) => {
+      if (e.data?.type === '__bond_select') {
+        const { x, y, width, height, description, breadcrumb, tagName } = e.data;
+        const iframeRect = iframeRef.current?.getBoundingClientRect();
+        if (!iframeRect) return;
+        const canvasRect = canvasRef.current?.getBoundingClientRect();
+        if (!canvasRect) return;
+        
+        const color = COLORS[colorIndex.current % COLORS.length];
+        colorIndex.current++;
+        
+        const ann: Annotation = {
+          id: crypto.randomUUID(),
+          type: "select",
+          x: x, y: y,
+          width: Math.max(width, 20), height: Math.max(height, 20),
+          note: "", color,
+          guessedElement: description,
+          tagName,
+          breadcrumb: breadcrumb || [],
+        };
+        setAnnotations(prev => [...prev, ann]);
+        setSelectedAnnotation(ann.id);
+        setEditingNote("");
+        toast.success(`Selected: ${description}`);
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, []);
+
   const addWebsite = async () => {
     if (!newUrl.trim() || !user) return;
     setAdding(true);
     try {
-      const { data, error } = await supabase
-        .from("websites")
-        .insert({ user_id: user.id, url: newUrl.trim(), section: "editor" })
-        .select("id, url, name")
-        .single();
+      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "editor" }).select("id, url, name").single();
       if (error) throw error;
-      if (data) {
-        setWebsites(prev => [...prev, data]);
-        setActiveUrl(data.url);
-        setUrlInput(data.url);
-      }
+      if (data) { setWebsites(prev => [...prev, data]); setActiveUrl(data.url); setUrlInput(data.url); }
       setNewUrl("");
       toast.success("Website added");
-    } catch (e: any) {
-      toast.error(e.message);
-    } finally {
-      setAdding(false);
-    }
+    } catch (e: any) { toast.error(e.message); } finally { setAdding(false); }
   };
 
   const removeWebsite = async (id: string) => {
@@ -146,6 +268,7 @@ const VisualEditor = () => {
       setAnnotations([]);
       setGeneratedOutput(null);
       setContextMenu(null);
+      setHoverPreview(null);
     }
   };
 
@@ -163,20 +286,29 @@ const VisualEditor = () => {
     setContextMenu(null);
   };
 
-  const handleSmartClick = (clickX: number, clickY: number) => {
+  // Fallback smart selection when iframe postMessage doesn't work (cross-origin)
+  const handleFallbackSmartClick = (clickX: number, clickY: number) => {
     const rect = canvasRef.current?.getBoundingClientRect();
     if (!rect) return;
-    const guess = guessSection(clickY, clickX, rect.width, rect.height);
+    // Heuristic-based small element detection
+    const w = rect.width;
+    const h = rect.height;
+    let name = "Element";
+    let ew = 200, eh = 60;
+
+    if (clickY < 80) { name = "Navigation Bar"; ew = w; eh = 60; }
+    else if (clickY > h - 100) { name = "Footer"; ew = w; eh = 80; }
+    else if (clickX < 250) { name = "Sidebar Item"; ew = 200; eh = 40; }
+    else { name = "Content Element"; ew = 300; eh = 80; }
+
     const color = getNextColor();
     addAnnotation({
-      id: crypto.randomUUID(),
-      type: "select",
-      x: guess.x, y: guess.y,
-      width: guess.w, height: guess.h,
-      note: "", color,
-      guessedElement: guess.name,
+      id: crypto.randomUUID(), type: "select",
+      x: Math.max(clickX - ew / 2, 0), y: Math.max(clickY - eh / 2, 0),
+      width: ew, height: eh,
+      note: "", color, guessedElement: name,
     });
-    toast.success(`Auto-detected: ${guess.name}`);
+    toast.success(`Selected: ${name}`);
   };
 
   const handleContextAction = (action: string) => {
@@ -193,7 +325,7 @@ const VisualEditor = () => {
         addAnnotation({ id: crypto.randomUUID(), type: "highlight", x: contextMenu.canvasX - 80, y: contextMenu.canvasY - 30, width: 160, height: 60, note: "Change this", color });
         break;
       case "smart_select":
-        handleSmartClick(contextMenu.canvasX, contextMenu.canvasY);
+        handleFallbackSmartClick(contextMenu.canvasX, contextMenu.canvasY);
         break;
     }
     setContextMenu(null);
@@ -207,7 +339,6 @@ const VisualEditor = () => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Move tool: check if clicking on an annotation
     if (activeTool === "move") {
       for (let i = annotations.length - 1; i >= 0; i--) {
         const a = annotations[i];
@@ -223,7 +354,6 @@ const VisualEditor = () => {
       return;
     }
 
-    if (activeTool === "select") { handleSmartClick(x, y); return; }
     if (activeTool === "text") {
       addAnnotation({ id: crypto.randomUUID(), type: "text", x, y, width: 200, height: 40, text: "Edit this text", color: getNextColor() });
       return;
@@ -239,28 +369,19 @@ const VisualEditor = () => {
     const x = e.clientX - rect.left;
     const y = e.clientY - rect.top;
 
-    // Dragging annotation
     if (draggingId) {
-      setAnnotations(prev => prev.map(a =>
-        a.id === draggingId ? { ...a, x: x - dragOffset.x, y: y - dragOffset.y } : a
-      ));
+      setAnnotations(prev => prev.map(a => a.id === draggingId ? { ...a, x: x - dragOffset.x, y: y - dragOffset.y } : a));
       return;
     }
-
     if (!isDrawing || !drawStart) return;
     setCurrentDraw({
-      x: Math.min(drawStart.x, x),
-      y: Math.min(drawStart.y, y),
-      w: Math.abs(x - drawStart.x),
-      h: Math.abs(y - drawStart.y),
+      x: Math.min(drawStart.x, x), y: Math.min(drawStart.y, y),
+      w: Math.abs(x - drawStart.x), h: Math.abs(y - drawStart.y),
     });
   }, [isDrawing, drawStart, draggingId, dragOffset]);
 
   const handleCanvasMouseUp = useCallback(() => {
-    if (draggingId) {
-      setDraggingId(null);
-      return;
-    }
+    if (draggingId) { setDraggingId(null); return; }
     if (!isDrawing || !currentDraw) { setIsDrawing(false); return; }
     if (currentDraw.w > 10 && currentDraw.h > 10) {
       addAnnotation({
@@ -286,29 +407,14 @@ const VisualEditor = () => {
 
   useEffect(() => {
     const close = () => setContextMenu(null);
-    if (contextMenu) {
-      window.addEventListener("click", close, { once: true });
-      return () => window.removeEventListener("click", close);
-    }
+    if (contextMenu) { window.addEventListener("click", close, { once: true }); return () => window.removeEventListener("click", close); }
   }, [contextMenu]);
 
-  const updateAnnotationNote = (id: string, note: string) => {
-    setAnnotations(prev => prev.map(a => a.id === id ? { ...a, note } : a));
-  };
-  const updateAnnotationText = (id: string, text: string) => {
-    setAnnotations(prev => prev.map(a => a.id === id ? { ...a, text } : a));
-  };
-  const updateAnnotationPos = (id: string, x: number, y: number) => {
-    setAnnotations(prev => prev.map(a => a.id === id ? { ...a, x, y } : a));
-  };
-  const removeAnnotation = (id: string) => {
-    setAnnotations(prev => prev.filter(a => a.id !== id));
-    if (selectedAnnotation === id) setSelectedAnnotation(null);
-  };
-  const undoLast = () => {
-    setAnnotations(prev => prev.slice(0, -1));
-    setSelectedAnnotation(null);
-  };
+  const updateAnnotationNote = (id: string, note: string) => { setAnnotations(prev => prev.map(a => a.id === id ? { ...a, note } : a)); };
+  const updateAnnotationText = (id: string, text: string) => { setAnnotations(prev => prev.map(a => a.id === id ? { ...a, text } : a)); };
+  const updateAnnotationPos = (id: string, x: number, y: number) => { setAnnotations(prev => prev.map(a => a.id === id ? { ...a, x, y } : a)); };
+  const removeAnnotation = (id: string) => { setAnnotations(prev => prev.filter(a => a.id !== id)); if (selectedAnnotation === id) setSelectedAnnotation(null); };
+  const undoLast = () => { setAnnotations(prev => prev.slice(0, -1)); setSelectedAnnotation(null); };
 
   const generateCode = async (mode: "code" | "instructions") => {
     if (annotations.length === 0) { toast.error("Add some annotations first"); return; }
@@ -322,16 +428,12 @@ const VisualEditor = () => {
       setGeneratedOutput(data.output);
       setShowOutput(true);
       toast.success(mode === "code" ? "Code generated!" : "Instructions generated!");
-    } catch (e: any) {
-      toast.error(e.message || "Generation failed");
-    } finally {
-      setGenerating(false);
-    }
+    } catch (e: any) { toast.error(e.message || "Generation failed"); } finally { setGenerating(false); }
   };
 
   const selectedAnn = annotations.find(a => a.id === selectedAnnotation);
   const cursorMap: Record<ToolType, string> = {
-    browse: "default", select: "pointer", highlight: "crosshair",
+    browse: "default", cursor: "pointer", highlight: "crosshair",
     text: "text", box: "crosshair", move: "grab",
   };
 
@@ -346,7 +448,7 @@ const VisualEditor = () => {
         </div>
         <div className="flex items-center gap-1 border border-border rounded-md p-1">
           {toolConfig.map((tool) => (
-            <button key={tool.tool} onClick={() => { setActiveTool(tool.tool); setContextMenu(null); }}
+            <button key={tool.tool} onClick={() => { setActiveTool(tool.tool); setContextMenu(null); setHoverPreview(null); }}
               className={`p-1.5 rounded transition-colors ${activeTool === tool.tool ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground hover:bg-secondary"}`}
               title={`${tool.label} — ${tool.tip}`}>
               <tool.icon className="w-4 h-4" />
@@ -425,23 +527,24 @@ const VisualEditor = () => {
                 <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
                 <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
                 <span className="text-[10px] text-muted-foreground font-mono ml-2 truncate">{activeUrl}</span>
-                {overlayActive && (
+                {(overlayActive || isCursorMode) && (
                   <span className="ml-auto text-[10px] text-primary font-medium animate-pulse">
-                    ● {activeTool === "move" ? "Drag annotations to move" : "Editing mode — right-click for quick actions"}
+                    ● {activeTool === "cursor" ? "Click elements to select — double-click for parent" : activeTool === "move" ? "Drag annotations to move" : "Editing mode — right-click for quick actions"}
                   </span>
                 )}
               </div>
 
-              {/* iframe — sandbox prevents navigation */}
+              {/* iframe */}
               <iframe
+                ref={iframeRef}
                 src={activeUrl}
                 className="w-full h-full pt-8 border-0"
                 sandbox="allow-scripts allow-same-origin"
                 title="Website Preview"
-                style={{ pointerEvents: overlayActive ? "none" : "auto" }}
+                style={{ pointerEvents: (overlayActive) ? "none" : "auto" }}
               />
 
-              {/* Annotation overlay */}
+              {/* Annotation overlay for draw tools */}
               {overlayActive && (
                 <div ref={canvasRef} className="absolute inset-0 mt-8 z-10"
                   style={{ cursor: draggingId ? "grabbing" : cursorMap[activeTool] }}
@@ -465,27 +568,20 @@ const VisualEditor = () => {
                   {annotations.map((ann) => (
                     <div key={ann.id} className="absolute rounded transition-all"
                       style={{
-                        left: ann.x, top: ann.y,
-                        width: ann.width, height: ann.height,
+                        left: ann.x, top: ann.y, width: ann.width, height: ann.height,
                         border: `2px solid ${ann.color}`,
                         backgroundColor: ann.type === "highlight" ? `${ann.color}25` : `${ann.color}10`,
                         boxShadow: selectedAnnotation === ann.id ? `0 0 0 3px ${ann.color}, 0 4px 20px ${ann.color}30` : undefined,
                         cursor: activeTool === "move" ? "grab" : "pointer",
                       }}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedAnnotation(ann.id);
-                        setEditingNote(ann.note || "");
-                        setEditingText(ann.text || "");
-                      }}>
-                      {/* Label */}
+                      onClick={(e) => { e.stopPropagation(); setSelectedAnnotation(ann.id); setEditingNote(ann.note || ""); setEditingText(ann.text || ""); }}>
                       <div className="absolute -top-6 left-0 px-2 py-0.5 rounded-t text-[10px] font-semibold text-white whitespace-nowrap flex items-center gap-1"
                         style={{ backgroundColor: ann.color }}>
                         {ann.type === "box" && <Square className="w-2.5 h-2.5" />}
                         {ann.type === "highlight" && <Highlighter className="w-2.5 h-2.5" />}
                         {ann.type === "text" && <Type className="w-2.5 h-2.5" />}
                         {ann.type === "select" && <Crosshair className="w-2.5 h-2.5" />}
-                        {ann.guessedElement || (ann.type === "box" ? "Section" : ann.type === "text" ? "Text" : ann.type === "highlight" ? "Highlight" : "Selection")}
+                        {ann.guessedElement || ann.type}
                       </div>
                       {ann.type === "text" && (
                         <div className="w-full h-full flex items-center justify-center p-1">
@@ -501,7 +597,7 @@ const VisualEditor = () => {
                 </div>
               )}
 
-              {/* Annotations visible in browse mode */}
+              {/* Annotations visible in browse/cursor mode */}
               {!overlayActive && annotations.length > 0 && (
                 <div className="absolute inset-0 mt-8 z-10 pointer-events-none">
                   {annotations.map((ann) => (
@@ -529,8 +625,8 @@ const VisualEditor = () => {
                 </div>
                 <h3 className="text-lg font-semibold text-foreground mb-2">Visual Editor</h3>
                 <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
-                  Load a website, then use the toolbar to annotate changes.<br />
-                  Use <strong>Move</strong> to drag annotations. <strong>Right-click</strong> for quick actions.
+                  Load a website, then use <strong>Cursor</strong> to click and select elements directly.<br />
+                  Double-click to select parent containers. Use <strong>Move</strong> to drag annotations.
                 </p>
                 <div className="flex gap-2 max-w-sm mx-auto">
                   <Input placeholder="https://yourwebsite.com" value={urlInput}
@@ -556,16 +652,32 @@ const VisualEditor = () => {
                   <X className="w-4 h-4" />
                 </button>
               </div>
+
+              {/* Breadcrumb */}
+              {selectedAnn.breadcrumb && selectedAnn.breadcrumb.length > 0 && (
+                <div className="mb-3 flex flex-wrap items-center gap-0.5">
+                  {selectedAnn.breadcrumb.slice(-4).map((part, i, arr) => (
+                    <span key={i} className="flex items-center gap-0.5">
+                      <span className={`text-[10px] font-mono ${i === arr.length - 1 ? "text-primary font-bold" : "text-muted-foreground"}`}>
+                        {part}
+                      </span>
+                      {i < arr.length - 1 && <ChevronRight className="w-2.5 h-2.5 text-muted-foreground" />}
+                    </span>
+                  ))}
+                </div>
+              )}
+
               <div className="space-y-4">
                 <div className="flex items-center gap-2">
                   <div className="w-3 h-3 rounded-full" style={{ backgroundColor: selectedAnn.color }} />
                   <span className="text-sm text-foreground capitalize">{selectedAnn.type}</span>
+                  {selectedAnn.tagName && <span className="text-[10px] text-muted-foreground font-mono bg-secondary px-1.5 py-0.5 rounded">&lt;{selectedAnn.tagName}&gt;</span>}
                   <span className="text-xs text-muted-foreground font-mono ml-auto">
                     {Math.round(selectedAnn.width)}×{Math.round(selectedAnn.height)}
                   </span>
                 </div>
 
-                {/* X/Y position controls */}
+                {/* Position */}
                 <div>
                   <label className="text-xs text-muted-foreground mb-1 block">Position</label>
                   <div className="flex gap-2">
@@ -644,7 +756,7 @@ const VisualEditor = () => {
             onClick={(e) => e.stopPropagation()}>
             <button className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary flex items-center gap-2"
               onClick={() => handleContextAction("smart_select")}>
-              <Crosshair className="w-4 h-4 text-primary" />Auto-detect section
+              <Crosshair className="w-4 h-4 text-primary" />Auto-detect element
             </button>
             <button className="w-full text-left px-3 py-2 text-sm text-foreground hover:bg-secondary flex items-center gap-2"
               onClick={() => handleContextAction("add_box")}>
@@ -661,6 +773,9 @@ const VisualEditor = () => {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* AI Chat Bar */}
+      <AIChatBar context="editor" placeholder="Ask about this UI..." />
     </div>
   );
 };

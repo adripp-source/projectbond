@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import AIChatBar from "@/components/AIChatBar";
 
 interface FlowNode {
   id: string;
@@ -290,6 +291,7 @@ const FlowLogicView = () => {
           </div>
         )}
       </div>
+      <AIChatBar context="flow" placeholder="Ask about user flows..." />
     </div>
   );
 };

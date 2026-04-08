@@ -11,6 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import AIChatBar from "@/components/AIChatBar";
 
 interface ScanData {
   id: string;
@@ -343,6 +344,8 @@ const Home = () => {
           </div>
         ))}
       </div>
+
+      <AIChatBar context="home" placeholder="What would you like to improve?" />
     </div>
   );
 };
