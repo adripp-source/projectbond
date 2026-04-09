@@ -212,6 +212,40 @@ const Onboarding = () => {
           <h1 className="text-2xl font-bold text-foreground tracking-tight">Project Bond</h1>
         </div>
 
+        {step === "welcome" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-center text-foreground text-xl font-semibold mb-3">
+              Welcome to Project Bond 👋
+            </h2>
+            <p className="text-center text-muted-foreground text-sm mb-4 leading-relaxed">
+              You're in! Project Bond helps you understand your website, find what's broken, and fix it — all in one place.
+            </p>
+            <div className="bg-card border border-border rounded-lg p-4 mb-6 space-y-3">
+              <div className="flex items-start gap-3">
+                <span className="text-primary font-bold text-sm mt-0.5">1.</span>
+                <p className="text-sm text-foreground">Tell us how you build — we'll tailor every fix to your workflow.</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-primary font-bold text-sm mt-0.5">2.</span>
+                <p className="text-sm text-foreground">Paste your website URL — we'll analyze UX, security, brand, and more.</p>
+              </div>
+              <div className="flex items-start gap-3">
+                <span className="text-primary font-bold text-sm mt-0.5">3.</span>
+                <p className="text-sm text-foreground">Get actionable results — with code, guidance, and visual edits.</p>
+              </div>
+            </div>
+            <Button
+              onClick={() => setStep("user_type")}
+              className="w-full h-11 bg-gradient-primary text-primary-foreground font-medium hover:opacity-90"
+            >
+              <span className="flex items-center gap-2">
+                Let's Get Started
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            </Button>
+          </motion.div>
+        )}
+
         {step === "user_type" && (
           <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
             <h2 className="text-center text-foreground text-lg font-semibold mb-2">
