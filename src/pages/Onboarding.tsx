@@ -30,7 +30,7 @@ const userTypes = [
   },
 ];
 
-type Step = "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "analyzing";
+type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "analyzing";
 
 const Onboarding = () => {
   const [url, setUrl] = useState("");
