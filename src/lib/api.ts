@@ -10,6 +10,15 @@ export const api = {
     return data;
   },
 
+  async getPageSpeed(url: string) {
+    const { data, error } = await supabase.functions.invoke("pagespeed-analyze", {
+      body: { url },
+    });
+    if (error) throw error;
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
+
   async analyzeMedia(companyName: string, socials?: {
     twitter?: string;
     linkedin?: string;

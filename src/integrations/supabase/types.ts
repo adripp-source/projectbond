@@ -14,6 +14,60 @@ export type Database = {
   }
   public: {
     Tables: {
+      alerts: {
+        Row: {
+          category: string | null
+          created_at: string
+          id: string
+          is_read: boolean | null
+          issue_id: string | null
+          message: string
+          scan_id: string | null
+          severity: string
+          title: string
+          user_id: string
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          issue_id?: string | null
+          message: string
+          scan_id?: string | null
+          severity?: string
+          title: string
+          user_id: string
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          id?: string
+          is_read?: boolean | null
+          issue_id?: string | null
+          message?: string
+          scan_id?: string | null
+          severity?: string
+          title?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "alerts_issue_id_fkey"
+            columns: ["issue_id"]
+            isOneToOne: false
+            referencedRelation: "scan_issues"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "alerts_scan_id_fkey"
+            columns: ["scan_id"]
+            isOneToOne: false
+            referencedRelation: "scans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       branding: {
         Row: {
           company_name: string | null
@@ -203,6 +257,50 @@ export type Database = {
           },
         ]
       }
+      scan_preferences: {
+        Row: {
+          created_at: string
+          focus_areas: string[] | null
+          goals: string[] | null
+          growth_mode: string | null
+          id: string
+          skill_level: string | null
+          updated_at: string
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          created_at?: string
+          focus_areas?: string[] | null
+          goals?: string[] | null
+          growth_mode?: string | null
+          id?: string
+          skill_level?: string | null
+          updated_at?: string
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          created_at?: string
+          focus_areas?: string[] | null
+          goals?: string[] | null
+          growth_mode?: string | null
+          id?: string
+          skill_level?: string | null
+          updated_at?: string
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scan_preferences_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: true
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       scans: {
         Row: {
           ai_summary: string | null
@@ -257,6 +355,65 @@ export type Database = {
             foreignKeyName: "scans_website_id_fkey"
             columns: ["website_id"]
             isOneToOne: false
+            referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      website_credentials: {
+        Row: {
+          access_scope: string | null
+          account_type: string | null
+          allow_form_submission: boolean | null
+          allow_test_actions: boolean | null
+          block_destructive: boolean | null
+          created_at: string
+          id: string
+          login_url: string | null
+          notes: string | null
+          requires_login: boolean | null
+          safe_mode: boolean | null
+          updated_at: string
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          access_scope?: string | null
+          account_type?: string | null
+          allow_form_submission?: boolean | null
+          allow_test_actions?: boolean | null
+          block_destructive?: boolean | null
+          created_at?: string
+          id?: string
+          login_url?: string | null
+          notes?: string | null
+          requires_login?: boolean | null
+          safe_mode?: boolean | null
+          updated_at?: string
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          access_scope?: string | null
+          account_type?: string | null
+          allow_form_submission?: boolean | null
+          allow_test_actions?: boolean | null
+          block_destructive?: boolean | null
+          created_at?: string
+          id?: string
+          login_url?: string | null
+          notes?: string | null
+          requires_login?: boolean | null
+          safe_mode?: boolean | null
+          updated_at?: string
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "website_credentials_website_id_fkey"
+            columns: ["website_id"]
+            isOneToOne: true
             referencedRelation: "websites"
             referencedColumns: ["id"]
           },
