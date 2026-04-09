@@ -37,7 +37,7 @@ const Onboarding = () => {
   const [companyName, setCompanyName] = useState("");
   const [selectedType, setSelectedType] = useState<string | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [step, setStep] = useState<Step>("user_type");
+  const [step, setStep] = useState<Step>("welcome");
   const [progress, setProgress] = useState("");
   const [companyCode, setCompanyCode] = useState("");
   const [generatedCode, setGeneratedCode] = useState("");
