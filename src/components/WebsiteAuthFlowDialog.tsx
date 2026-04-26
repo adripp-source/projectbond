@@ -11,6 +11,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import GithubRepoInput from "@/components/GithubRepoInput";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 interface Props {
   open: boolean;
