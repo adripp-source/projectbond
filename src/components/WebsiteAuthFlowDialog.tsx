@@ -706,6 +706,12 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                   ))}
                 </div>
               </div>
+              <TechnicalityMeter
+                value={technicality}
+                onChange={setTechnicality}
+                label="Default technicality for this site"
+                hint="We'll use this whenever Bond writes anything for this site. You can override it per generation."
+              />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(requiresLogin ? "safety" : "login_check")} className="border-border">Back</Button>
                 <Button onClick={handleSave} disabled={saving} className="flex-1 bg-gradient-primary text-primary-foreground">
