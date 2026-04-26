@@ -254,7 +254,7 @@ const TechDocs = () => {
     setTab(pendingMode);
     try {
       const { data, error } = await supabase.functions.invoke("generate-tech-docs", {
-        body: { url: activeUrl, mode: pendingMode, login_notes: intent.custom, audience_role: intent.role, depth: intent.level },
+        body: { url: activeUrl, mode: pendingMode, login_notes: intent.custom, audience_role: intent.role, depth: intent.level, technicality: intent.technicality },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
