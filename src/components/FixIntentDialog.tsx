@@ -62,17 +62,20 @@ export default function FixIntentDialog({ open, onOpenChange, onConfirm, title, 
   const [level, setLevel] = useState<FixLevel>("standard");
   const [custom, setCustom] = useState("");
   const [role, setRole] = useState("");
+  const [technicality, setTechnicality] = useState<number>(3);
 
   const submit = () => {
     onConfirm({
       level,
       custom: level === "custom" ? custom.trim() : undefined,
       role: role.trim() || undefined,
+      technicality,
     });
     onOpenChange(false);
     setCustom("");
     setRole("");
     setLevel("standard");
+    setTechnicality(3);
   };
 
   return (
