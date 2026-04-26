@@ -337,6 +337,75 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                 </div>
               </div>
 
+              {/* Login credentials */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider flex items-center gap-1.5">
+                  <KeyRound className="w-3 h-3" /> Login credentials
+                  <span className="text-[10px] font-normal normal-case text-muted-foreground/70">(test account only)</span>
+                </label>
+                <div className="space-y-2">
+                  <div className="relative">
+                    <User className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      value={testUsername}
+                      onChange={e => setTestUsername(e.target.value)}
+                      placeholder="Email or username Bond should sign in with"
+                      autoComplete="off"
+                      className="pl-9 bg-secondary border-border text-foreground text-xs"
+                    />
+                  </div>
+                  <div className="relative">
+                    <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
+                    <Input
+                      type={showPassword ? "text" : "password"}
+                      value={testPassword}
+                      onChange={e => setTestPassword(e.target.value)}
+                      placeholder="Password"
+                      autoComplete="new-password"
+                      className="pl-9 pr-9 bg-secondary border-border text-foreground text-xs"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(s => !s)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+                      aria-label={showPassword ? "Hide password" : "Show password"}
+                    >
+                      {showPassword ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                    </button>
+                  </div>
+                </div>
+                <div className="flex items-start gap-1.5 mt-2 px-1">
+                  <Info className="w-3 h-3 text-muted-foreground mt-0.5 flex-shrink-0" />
+                  <p className="text-[11px] text-muted-foreground leading-relaxed">
+                    Use a <span className="text-foreground/80 font-medium">dedicated test/sandbox account</span> — never your personal admin login. Bond uses these only to sign in and look around inside the logged-in area.
+                  </p>
+                </div>
+              </div>
+
+              {/* Explicit permission grant */}
+              <button
+                type="button"
+                onClick={() => setPermissionGranted(p => !p)}
+                className={`w-full text-left p-3 rounded-lg border transition-all flex items-start gap-3 ${
+                  permissionGranted ? "border-primary bg-primary/5" : "border-border bg-secondary/30 hover:border-primary/40"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                  permissionGranted ? "bg-primary border-primary" : "border-border bg-background"
+                }`}>
+                  {permissionGranted && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                    I authorize Bond to log in with these credentials and test inside this account
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                    By checking this, you confirm you own (or are authorized to test) this site, and you give Bond permission to use the credentials above to sign in and inspect the logged-in area under the safety rules you'll set next.
+                  </p>
+                </div>
+              </button>
+
               {accountType === "paid" && (
                 <div className="flex items-start gap-2 p-3 rounded-lg bg-destructive/5 border border-destructive/30">
                   <AlertTriangle className="w-4 h-4 text-destructive flex-shrink-0 mt-0.5" />
@@ -350,10 +419,19 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                 <Button variant="outline" onClick={() => setStep("login_check")} className="border-border">
                   Back
                 </Button>
-                <Button onClick={() => setStep("safety")} className="flex-1 bg-gradient-primary text-primary-foreground">
+                <Button
+                  onClick={() => setStep("safety")}
+                  disabled={!permissionGranted || !testUsername || !testPassword}
+                  className="flex-1 bg-gradient-primary text-primary-foreground disabled:opacity-50"
+                >
                   Continue <ArrowRight className="w-4 h-4 ml-2" />
                 </Button>
               </div>
+              {(!permissionGranted || !testUsername || !testPassword) && (
+                <p className="text-[10px] text-muted-foreground text-center -mt-1">
+                  Enter test credentials and grant permission to continue.
+                </p>
+              )}
             </div>
           </>
         )}
