@@ -514,6 +514,7 @@ export type Database = {
     }
     Functions: {
       generate_company_code: { Args: never; Returns: string }
+      get_user_workspace_ids: { Args: { _user_id: string }; Returns: string[] }
       join_workspace_by_code: { Args: { _code: string }; Returns: string }
     }
     Enums: {
