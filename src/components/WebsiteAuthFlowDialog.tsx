@@ -85,9 +85,15 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [hasLocalCopy, setHasLocalCopy] = useState(false);
   const [localCopyUrl, setLocalCopyUrl] = useState("");
+  const [githubRepoUrl, setGithubRepoUrl] = useState("");
+  const [githubIsPublic, setGithubIsPublic] = useState(true);
+  const [nonInvasiveOnly, setNonInvasiveOnly] = useState(true);
+  const [loginType, setLoginType] = useState<"password" | "password_pin" | "twofa">("password");
+  const [pinOr2fa, setPinOr2fa] = useState("");
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [goals, setGoals] = useState<string[]>([]);
   const [skillLevel, setSkillLevel] = useState("beginner");
+  const [technicality, setTechnicality] = useState<number>(3);
   const [saving, setSaving] = useState(false);
 
   // Pre-fill an intelligent guess for the login URL from the site URL
