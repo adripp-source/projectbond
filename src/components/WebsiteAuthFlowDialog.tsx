@@ -126,6 +126,9 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         setTestUsername(c.test_username || "");
         setTestPassword(c.test_password || "");
         setPermissionGranted(c.permission_granted ?? false);
+        setNonInvasiveOnly(c.non_invasive_only ?? true);
+        setLoginType((c.login_type as any) || "password");
+        setPinOr2fa(c.pin_or_2fa || "");
         // Local/staging copy is stored inside the free-form `notes` field as JSON
         try {
           const parsed = c.notes ? JSON.parse(c.notes) : null;
@@ -134,6 +137,15 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
             setLocalCopyUrl(parsed.local_copy_url);
           }
         } catch { /* notes was plain text — ignore */ }
+      }
+      // Per-website GitHub repo lives on the websites row
+      const { data: site } = await supabase
+        .from("websites" as any)
+        .select("github_repo_url")
+        .eq("id", websiteId)
+        .maybeSingle();
+      if (site && (site as any).github_repo_url) {
+        setGithubRepoUrl((site as any).github_repo_url);
       }
       const { data: pref } = await supabase
         .from("scan_preferences" as any)
