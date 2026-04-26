@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, Globe, Loader2, Building, Code, Users, Blocks, Hash } from "lucide-react";
+import { Zap, ArrowRight, Globe, Loader2, Building, Code, Users, Blocks, Hash, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 const userTypes = [
   {
@@ -31,7 +32,20 @@ const userTypes = [
   },
 ];
 
-type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "configure" | "analyzing";
+type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "profile" | "input" | "configure" | "analyzing";
+
+const TEAM_SIZES = [
+  { v: "solo", label: "Just me" },
+  { v: "small", label: "2–10 people" },
+  { v: "mid", label: "11–50" },
+  { v: "large", label: "50+" },
+];
+
+const CODE_SKILLS = [
+  { v: "none", label: "I don't code", desc: "Plain English only" },
+  { v: "some", label: "A little", desc: "I can read code" },
+  { v: "lots", label: "Confident", desc: "Comfortable shipping code" },
+];
 
 const Onboarding = () => {
   const [url, setUrl] = useState("");
@@ -47,6 +61,11 @@ const Onboarding = () => {
   const [pendingWebsiteId, setPendingWebsiteId] = useState<string | null>(null);
   const [pendingWebsiteUrl, setPendingWebsiteUrl] = useState<string>("");
   const [configureOpen, setConfigureOpen] = useState(false);
+  // NEW: profile fields
+  const [jobRole, setJobRole] = useState("");
+  const [teamSize, setTeamSize] = useState("");
+  const [codeSkill, setCodeSkill] = useState("some");
+  const [technicality, setTechnicality] = useState(3);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -61,7 +80,25 @@ const Onboarding = () => {
     if (type === "dev_team") {
       setStep("dev_team_choice");
     } else {
+      setStep("profile");
+    }
+  };
+
+  const saveProfileAndContinue = async () => {
+    if (!user) return;
+    try {
+      await supabase
+        .from("profiles")
+        .update({
+          job_role: jobRole.trim() || null,
+          team_size: teamSize || null,
+          code_skill: codeSkill,
+          technicality_level: technicality,
+        } as any)
+        .eq("user_id", user.id);
       setStep("input");
+    } catch (e: any) {
+      toast.error(e.message || "Couldn't save profile");
     }
   };
 
@@ -96,7 +133,7 @@ const Onboarding = () => {
 
       setGeneratedCode(code);
       setCompanyName(workspaceName.trim());
-      setStep("input");
+      setStep("profile");
       toast.success(`Workspace created! Your company code: ${code}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to create workspace");
@@ -143,7 +180,7 @@ const Onboarding = () => {
         .eq("user_id", user.id);
 
       setCompanyName(ws.company_name);
-      setStep("input");
+      setStep("profile");
       toast.success(`Joined ${ws.company_name}!`);
     } catch (err: any) {
       toast.error(err.message || "Failed to join workspace");
@@ -422,6 +459,91 @@ const Onboarding = () => {
             <button
               onClick={() => setStep("dev_team_choice")}
               className="w-full text-xs text-muted-foreground hover:text-foreground mt-4"
+            >
+              ← Back
+            </button>
+          </motion.div>
+        )}
+
+        {step === "profile" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
+            <h2 className="text-center text-foreground text-lg font-semibold mb-2">A bit about you</h2>
+            <p className="text-center text-muted-foreground text-sm mb-5">
+              We'll use this to tailor every doc, fix and explanation to your level — never any harder, never any softer.
+            </p>
+
+            <div className="space-y-4">
+              <div className="relative">
+                <Briefcase className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  placeholder="Your role (e.g. Marketing Lead, Founder, Junior Dev)"
+                  value={jobRole}
+                  onChange={(e) => setJobRole(e.target.value)}
+                  className="pl-10 h-11 bg-card border-border text-foreground"
+                />
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">Team size</p>
+                <div className="grid grid-cols-4 gap-2">
+                  {TEAM_SIZES.map(t => (
+                    <button
+                      key={t.v}
+                      type="button"
+                      onClick={() => setTeamSize(t.v)}
+                      className={`px-2 py-2 rounded-md border text-xs transition-all ${
+                        teamSize === t.v
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                      }`}
+                    >
+                      {t.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-foreground mb-2 uppercase tracking-wider">How comfortable are you with code?</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {CODE_SKILLS.map(s => (
+                    <button
+                      key={s.v}
+                      type="button"
+                      onClick={() => setCodeSkill(s.v)}
+                      className={`px-2 py-2 rounded-md border text-left transition-all ${
+                        codeSkill === s.v
+                          ? "border-primary bg-primary/10"
+                          : "border-border bg-card hover:border-primary/50"
+                      }`}
+                    >
+                      <p className="text-xs font-semibold text-foreground">{s.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{s.desc}</p>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <TechnicalityMeter
+                value={technicality}
+                onChange={setTechnicality}
+                hint="You can override this per-website and per-generation later."
+              />
+            </div>
+
+            <Button
+              onClick={saveProfileAndContinue}
+              className="w-full h-11 bg-gradient-primary text-primary-foreground font-medium hover:opacity-90 mt-5"
+            >
+              <span className="flex items-center gap-2">
+                Continue
+                <ArrowRight className="w-4 h-4" />
+              </span>
+            </Button>
+
+            <button
+              onClick={() => setStep(selectedType === "dev_team" ? "dev_team_choice" : "user_type")}
+              className="w-full text-xs text-muted-foreground hover:text-foreground mt-3"
             >
               ← Back
             </button>

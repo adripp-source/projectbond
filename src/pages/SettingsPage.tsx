@@ -1,18 +1,31 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Settings, User, Bell, Shield, Globe, Save, Loader2, Code, Users, Blocks, ShieldCheck } from "lucide-react";
+import { Settings, User, Bell, Shield, Globe, Save, Loader2, Code, Users, Blocks, ShieldCheck, Briefcase } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 const userTypeLabels: Record<string, { label: string; icon: any }> = {
   dev_team: { label: "I have a dev team", icon: Users },
   developer: { label: "I code myself", icon: Code },
   nocode: { label: "I use no-code tools", icon: Blocks },
 };
+
+const TEAM_SIZES = [
+  { v: "solo", label: "Just me" },
+  { v: "small", label: "2–10" },
+  { v: "mid", label: "11–50" },
+  { v: "large", label: "50+" },
+];
+const CODE_SKILLS = [
+  { v: "none", label: "I don't code" },
+  { v: "some", label: "A little" },
+  { v: "lots", label: "Confident" },
+];
 
 const RESTART_WORD = "RESTART";
 
@@ -21,6 +34,10 @@ const SettingsPage = () => {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [userType, setUserType] = useState("");
+  const [jobRole, setJobRole] = useState("");
+  const [teamSize, setTeamSize] = useState("");
+  const [codeSkill, setCodeSkill] = useState("some");
+  const [technicality, setTechnicality] = useState(3);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mfaEnabled, setMfaEnabled] = useState(false);
@@ -73,12 +90,17 @@ const SettingsPage = () => {
     setEmail(user.email || "");
 
     Promise.all([
-      supabase.from("profiles").select("display_name, user_type").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profiles").select("display_name, user_type, job_role, team_size, code_skill, technicality_level").eq("user_id", user.id).maybeSingle(),
       supabase.auth.mfa.listFactors(),
     ]).then(([profileRes, mfaRes]) => {
       if (profileRes.data) {
-        setDisplayName((profileRes.data as any).display_name || "");
-        setUserType((profileRes.data as any).user_type || "");
+        const p = profileRes.data as any;
+        setDisplayName(p.display_name || "");
+        setUserType(p.user_type || "");
+        setJobRole(p.job_role || "");
+        setTeamSize(p.team_size || "");
+        setCodeSkill(p.code_skill || "some");
+        setTechnicality(p.technicality_level ?? 3);
       }
       if (mfaRes.data) {
         const verified = mfaRes.data.totp.filter((f: any) => f.status === "verified");
@@ -95,7 +117,14 @@ const SettingsPage = () => {
     try {
       await supabase
         .from("profiles")
-        .update({ display_name: displayName.trim(), user_type: userType } as any)
+        .update({
+          display_name: displayName.trim(),
+          user_type: userType,
+          job_role: jobRole.trim() || null,
+          team_size: teamSize || null,
+          code_skill: codeSkill,
+          technicality_level: technicality,
+        } as any)
         .eq("user_id", user.id);
       toast.success("Settings saved!");
     } catch (e: any) {
@@ -229,6 +258,76 @@ const SettingsPage = () => {
                 {label}
               </button>
             ))}
+          </div>
+        </div>
+
+        {/* Personal Preferences — drives doc / fix tone everywhere */}
+        <div className="bg-card border border-border rounded-lg p-6 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Briefcase className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Personal Preferences</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Drives the language & depth of every doc, fix, and explanation. You can override per-website or per-generation.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4 max-w-2xl mb-4">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Your role</label>
+              <Input
+                value={jobRole}
+                onChange={(e) => setJobRole(e.target.value)}
+                placeholder="e.g. Marketing Lead, Founder, Junior Dev"
+                className="bg-secondary border-border text-foreground"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Team size</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {TEAM_SIZES.map(t => (
+                  <button
+                    key={t.v}
+                    type="button"
+                    onClick={() => setTeamSize(t.v)}
+                    className={`px-2.5 py-1.5 rounded-md border text-xs transition-all ${
+                      teamSize === t.v
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-4 max-w-2xl">
+            <label className="text-xs text-muted-foreground mb-1.5 block">Comfort with code</label>
+            <div className="flex gap-1.5">
+              {CODE_SKILLS.map(s => (
+                <button
+                  key={s.v}
+                  type="button"
+                  onClick={() => setCodeSkill(s.v)}
+                  className={`px-3 py-1.5 rounded-md border text-xs transition-all ${
+                    codeSkill === s.v
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="max-w-2xl">
+            <TechnicalityMeter
+              value={technicality}
+              onChange={setTechnicality}
+              hint="This becomes the default for every new doc, fix, and explanation."
+            />
           </div>
         </div>
 
