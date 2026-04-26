@@ -180,7 +180,7 @@ const Onboarding = () => {
         .eq("user_id", user.id);
 
       setCompanyName(ws.company_name);
-      setStep("input");
+      setStep("profile");
       toast.success(`Joined ${ws.company_name}!`);
     } catch (err: any) {
       toast.error(err.message || "Failed to join workspace");
