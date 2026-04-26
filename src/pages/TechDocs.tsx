@@ -53,6 +53,44 @@ const TechDocs = () => {
   const [urlError, setUrlError] = useState<string | null>(null);
   const [intentOpen, setIntentOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<"docs" | "features" | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const docsRef = useRef<HTMLDivElement>(null);
+
+  const exportDocsPdf = async () => {
+    if (!docsRef.current || !docs) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(docsRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#0a0a0a",
+        logging: false,
+      });
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgData = canvas.toDataURL("image/png");
+      let position = 0;
+      let heightLeft = imgHeight;
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      const safeName = (activeUrl || "site").replace(/^https?:\/\//, "").replace(/[^a-z0-9]/gi, "-");
+      pdf.save(`onboarding-${safeName}.pdf`);
+      toast.success("PDF downloaded");
+    } catch (e: any) {
+      toast.error(e.message || "PDF export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Load websites
   useEffect(() => {
