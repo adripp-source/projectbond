@@ -247,7 +247,7 @@ const TechDocs = () => {
             <EmptyState icon={FileCode} title="No documentation yet" subtitle="Pick a website above and click Generate onboarding doc." />
           )}
           {docs && (
-            <div className="space-y-4">
+            <div ref={docsRef} className="space-y-4 bg-background p-2">
               <Section icon={Sparkles} title="Project Overview">
                 <p className="text-sm text-foreground leading-relaxed">{docs.project_overview}</p>
               </Section>
