@@ -13,6 +13,8 @@ import { toast } from "sonner";
 import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
 import SuggestedWebsites from "@/components/SuggestedWebsites";
 import SmartUrlError from "@/components/SmartUrlError";
+import EmptyState from "@/components/EmptyState";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { isProbablyValidUrl, normalizeUrl } from "@/lib/urlSuggest";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -42,8 +44,10 @@ interface PageSpeedMetrics {
 
 const WebsiteAnalysis = () => {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [websites, setWebsites] = useState<WebsiteRow[]>([]);
   const [newUrl, setNewUrl] = useState("");
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -88,7 +92,11 @@ const WebsiteAnalysis = () => {
   useEffect(() => { loadData(); }, [user]);
 
   const addWebsite = async () => {
-    if (!newUrl.trim() || !user) return;
+    if (adding) return; // prevent double-submit
+    if (!newUrl.trim() || !user) {
+      setUrlError("__empty__");
+      return;
+    }
     const trimmed = newUrl.trim();
     if (!isProbablyValidUrl(trimmed)) {
       setUrlError(trimmed);
@@ -109,9 +117,25 @@ const WebsiteAnalysis = () => {
     } catch (e: any) { toast.error(e.message); } finally { setAdding(false); }
   };
 
-  const removeWebsite = async (id: string) => {
-    await supabase.from("websites").delete().eq("id", id);
-    setWebsites(prev => prev.filter(w => w.id !== id));
+  const removeWebsite = async (id: string, url: string) => {
+    if (removingId) return;
+    const ok = await confirm({
+      title: "Remove this website?",
+      description: `${url} will be removed from monitoring. Past scan history is kept.`,
+      confirmText: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
+    setRemovingId(id);
+    try {
+      await supabase.from("websites").delete().eq("id", id);
+      setWebsites(prev => prev.filter(w => w.id !== id));
+      toast.success("Website removed");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to remove");
+    } finally {
+      setRemovingId(null);
+    }
   };
 
   const runScan = async () => {
