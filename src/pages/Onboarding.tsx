@@ -133,7 +133,7 @@ const Onboarding = () => {
 
       setGeneratedCode(code);
       setCompanyName(workspaceName.trim());
-      setStep("input");
+      setStep("profile");
       toast.success(`Workspace created! Your company code: ${code}`);
     } catch (err: any) {
       toast.error(err.message || "Failed to create workspace");
