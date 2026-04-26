@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, Gauge, Eye, Accessibility, Search, Zap, AlertTriangle, TrendingUp } from "lucide-react";
+import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, Gauge, Eye, Accessibility, Search, Zap, AlertTriangle, TrendingUp, CalendarClock, X } from "lucide-react";
+import ScheduledScanDialog, { ScheduledScan } from "@/components/ScheduledScanDialog";
+import { sanitizeText, sanitizeUrl } from "@/lib/sanitize";
 import AIChatBar from "@/components/AIChatBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -60,6 +62,28 @@ const WebsiteAnalysis = () => {
   const [scanHistory, setScanHistory] = useState<Array<{ created_at: string; health_score: number | null; security_score: number | null }>>([]);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "issues">("overview");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduledScans, setScheduledScans] = useState<Array<{ id: string; runAt: number; label: string; timer: number }>>([]);
+
+  const scheduleScan = (s: ScheduledScan) => {
+    const id = crypto.randomUUID();
+    const runAt = Date.now() + s.delayMs;
+    const timer = window.setTimeout(() => {
+      setScheduledScans(prev => prev.filter(x => x.id !== id));
+      runScan();
+      toast.success(`Scheduled scan running (${s.label.toLowerCase()})`);
+    }, s.delayMs) as unknown as number;
+    setScheduledScans(prev => [...prev, { id, runAt, label: s.label, timer }]);
+    toast.success(`Scan scheduled ${s.label.toLowerCase()}`);
+  };
+
+  const cancelScheduled = (id: string) => {
+    setScheduledScans(prev => {
+      const t = prev.find(x => x.id === id);
+      if (t) clearTimeout(t.timer);
+      return prev.filter(x => x.id !== id);
+    });
+  };
 
   const loadData = async () => {
     if (!user) return;
@@ -89,14 +113,14 @@ const WebsiteAnalysis = () => {
 
   const addWebsite = async () => {
     if (!newUrl.trim() || !user) return;
-    const trimmed = newUrl.trim();
+    const trimmed = sanitizeText(newUrl.trim(), 500);
     if (!isProbablyValidUrl(trimmed)) {
       setUrlError(trimmed);
       return;
     }
     setAdding(true);
     try {
-      const url = normalizeUrl(trimmed);
+      const url = sanitizeUrl(normalizeUrl(trimmed)) || normalizeUrl(trimmed);
       const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url, section: "analysis" }).select("id, url, name").single();
       if (error) throw error;
       if (data) {
@@ -190,12 +214,33 @@ const WebsiteAnalysis = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{scanCount}/15 scans today</span>
+            <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={() => setScheduleOpen(true)}>
+              <CalendarClock className="w-3.5 h-3.5 mr-1.5" />Schedule
+            </Button>
             <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={runScan} disabled={scanning}>
               {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}Run Scan
             </Button>
           </div>
         </div>
+        {scheduledScans.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {scheduledScans.map(s => {
+              const minsLeft = Math.max(0, Math.round((s.runAt - Date.now()) / 60000));
+              return (
+                <div key={s.id} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/30 text-xs text-foreground">
+                  <CalendarClock className="w-3 h-3 text-primary" />
+                  <span>{s.label} <span className="text-muted-foreground">(~{minsLeft}m)</span></span>
+                  <button onClick={() => cancelScheduled(s.id)} aria-label="Cancel scheduled scan" className="text-muted-foreground hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </motion.div>
+
+      <ScheduledScanDialog open={scheduleOpen} onOpenChange={setScheduleOpen} onSchedule={scheduleScan} />
 
       <SuggestedWebsites section="analysis" onAdopted={(w) => setWebsites(prev => [...prev, { id: w.id, url: w.url, name: w.name }])} />
 
