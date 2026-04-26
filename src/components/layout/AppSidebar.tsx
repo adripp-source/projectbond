@@ -15,6 +15,7 @@ import {
   Kanban,
   Hash,
   GitBranch,
+  BookOpen,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useNavigate } from "react-router-dom";
@@ -27,6 +28,7 @@ const getNavItems = (userType: string | null, companyCode: string | null) => [
   { path: "/branding", label: "Branding", icon: Palette },
   { path: "/editor", label: "Visual Editor", icon: Paintbrush },
   { path: "/flows", label: "Flow & Logic", icon: GitBranch },
+  { path: "/docs", label: "Tech Docs", icon: BookOpen },
   { path: "/media", label: "Media Footprint", icon: Newspaper },
   { path: "/settings", label: "Settings", icon: Settings },
 ];

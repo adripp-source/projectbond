@@ -16,6 +16,7 @@ import ActionCenter from "./pages/ActionCenter";
 import VisualEditor from "./pages/VisualEditor";
 import FlowLogicView from "./pages/FlowLogicView";
 import SettingsPage from "./pages/SettingsPage";
+import TechDocs from "./pages/TechDocs";
 import NotFound from "./pages/NotFound";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
@@ -56,6 +57,7 @@ const App = () => (
               <Route path="/actions" element={<ActionCenter />} />
               <Route path="/editor" element={<VisualEditor />} />
               <Route path="/flows" element={<FlowLogicView />} />
+              <Route path="/docs" element={<TechDocs />} />
               <Route path="/settings" element={<SettingsPage />} />
             </Route>
             <Route path="*" element={<NotFound />} />
