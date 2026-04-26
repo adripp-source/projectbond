@@ -3,7 +3,9 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
+    <!-- Content Security Policy: blocks XSS by restricting where scripts/styles/connections can come from. -->
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdn.gpteng.co https://*.lovable.dev https://*.lovable.app; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; connect-src 'self' https://*.supabase.co https://*.supabase.in wss://*.supabase.co https://ai.gateway.lovable.dev https://*.lovable.dev https://*.lovable.app https://www.googleapis.com; frame-src 'self' https:; object-src 'none'; base-uri 'self'; form-action 'self';" />
+    <meta name="referrer" content="strict-origin-when-cross-origin" />
     <title>Project Bond</title>
     <meta name="description" content="Paste your website. We find what’s wrong and show you exactly how to fix it with code, design, and content improvements.">
     <meta name="author" content="Lovable" />
