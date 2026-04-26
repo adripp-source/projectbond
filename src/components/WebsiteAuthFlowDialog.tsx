@@ -78,6 +78,10 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
   const [safeMode, setSafeMode] = useState(true);
   const [allowForms, setAllowForms] = useState(false);
   const [blockDestructive, setBlockDestructive] = useState(true);
+  const [testUsername, setTestUsername] = useState("");
+  const [testPassword, setTestPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [permissionGranted, setPermissionGranted] = useState(false);
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [goals, setGoals] = useState<string[]>([]);
   const [skillLevel, setSkillLevel] = useState("beginner");
