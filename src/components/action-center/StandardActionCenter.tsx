@@ -200,7 +200,28 @@ const StandardActionCenter = () => {
 
               {/* Issue content */}
               <div className="bg-card border border-border rounded-xl p-6 shadow-card mb-4">
-                <h2 className="text-lg font-semibold text-foreground mb-3">{currentIssue.title}</h2>
+                <h2 className="text-lg font-semibold text-foreground mb-2">{currentIssue.title}</h2>
+
+                {/* Short action summary — one paragraph, plain English */}
+                <div className="bg-secondary/40 border-l-2 border-primary px-3 py-2 mb-3 rounded-r">
+                  <p className="text-[11px] uppercase tracking-wider font-semibold text-primary mb-1">In short</p>
+                  <p className="text-sm text-foreground leading-relaxed">
+                    {(() => {
+                      const cat = currentIssue.category || "this area";
+                      const sev =
+                        currentIssue.priority === "critical" ? "needs to be fixed first because it puts users or data at risk"
+                        : currentIssue.priority === "warning" ? "should be handled soon — it's hurting the experience without breaking anything"
+                        : "is a polish item — small effort, noticeable upgrade";
+                      const action =
+                        currentIssue.fix_code ? "Bond can generate a code patch you can drop in."
+                        : currentIssue.fix_nocode ? "Bond will walk you through the fix step-by-step, no code needed."
+                        : currentIssue.fix_visual ? "Bond will show a visual mock of the fix before you apply it."
+                        : "Pick a fix style below and Bond will tailor the solution to your skill level.";
+                      return `This ${cat} issue ${sev}. ${currentIssue.impact || "It affects how users perceive and trust the product."} ${action}`;
+                    })()}
+                  </p>
+                </div>
+
                 <p className="text-sm text-secondary-foreground leading-relaxed mb-4">{currentIssue.description}</p>
                 
                 {currentIssue.impact && (
