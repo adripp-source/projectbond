@@ -34,6 +34,10 @@ const SettingsPage = () => {
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [userType, setUserType] = useState("");
+  const [jobRole, setJobRole] = useState("");
+  const [teamSize, setTeamSize] = useState("");
+  const [codeSkill, setCodeSkill] = useState("some");
+  const [technicality, setTechnicality] = useState(3);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [mfaEnabled, setMfaEnabled] = useState(false);
