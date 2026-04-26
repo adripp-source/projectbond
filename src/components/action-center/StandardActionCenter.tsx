@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Target, Loader2, ArrowRight, ChevronLeft, ChevronRight, ArrowUpRight, ShieldAlert, Sparkles } from "lucide-react";
+import { Target, Loader2, ArrowRight, ChevronLeft, ChevronRight, ArrowUpRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
@@ -135,42 +135,6 @@ const StandardActionCenter = () => {
         </div>
       </motion.div>
 
-      {/* Executive verdict banner */}
-      {(() => {
-        const crit = issues.filter(i => i.priority === "critical").length;
-        const warn = issues.filter(i => i.priority === "warning").length;
-        const minor = issues.filter(i => i.priority === "low").length;
-        const verdict = crit > 0 ? "NEEDS IMPROVEMENT" : warn > 2 ? "STABLE WITH GAPS" : "HEALTHY";
-        const verdictColor = crit > 0 ? "text-destructive" : warn > 2 ? "text-warning" : "text-success";
-        return (
-          <motion.div
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-6 bg-card border border-border rounded-xl p-5 shadow-card"
-          >
-            <div className="flex items-start gap-3">
-              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
-                <Sparkles className="w-4 h-4 text-primary" />
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
-                  <h2 className="text-sm font-semibold text-foreground">Executive Summary</h2>
-                  <span className={`text-[10px] font-bold uppercase tracking-wider ${verdictColor}`}>· Verdict: {verdict}</span>
-                </div>
-                <p className="text-sm text-secondary-foreground leading-relaxed">
-                  ProjectBond is a functional MVP for project &amp; task management, but it currently lacks the robust polish
-                  and security infrastructure required for handling sensitive business data. We found{" "}
-                  <span className="text-destructive font-semibold">{crit} critical</span>,{" "}
-                  <span className="text-warning font-semibold">{warn} needing attention</span>, and{" "}
-                  <span className="text-success font-semibold">{minor} minor</span> issues across security, UX, and accessibility.
-                  The top priority is implementing comprehensive input sanitization and finishing empty-state logic to prevent
-                  a "hollow" user experience. Fixing these will immediately increase user trust and platform scalability.
-                </p>
-              </div>
-            </div>
-          </motion.div>
-        );
-      })()}
       {viewMode === "focus" && currentIssue ? (
         /* Focus View - One issue at a time */
         <div>
@@ -200,28 +164,7 @@ const StandardActionCenter = () => {
 
               {/* Issue content */}
               <div className="bg-card border border-border rounded-xl p-6 shadow-card mb-4">
-                <h2 className="text-lg font-semibold text-foreground mb-2">{currentIssue.title}</h2>
-
-                {/* Short action summary — one paragraph, plain English */}
-                <div className="bg-secondary/40 border-l-2 border-primary px-3 py-2 mb-3 rounded-r">
-                  <p className="text-[11px] uppercase tracking-wider font-semibold text-primary mb-1">In short</p>
-                  <p className="text-sm text-foreground leading-relaxed">
-                    {(() => {
-                      const cat = currentIssue.category || "this area";
-                      const sev =
-                        currentIssue.priority === "critical" ? "needs to be fixed first because it puts users or data at risk"
-                        : currentIssue.priority === "warning" ? "should be handled soon — it's hurting the experience without breaking anything"
-                        : "is a polish item — small effort, noticeable upgrade";
-                      const action =
-                        currentIssue.fix_code ? "Bond can generate a code patch you can drop in."
-                        : currentIssue.fix_nocode ? "Bond will walk you through the fix step-by-step, no code needed."
-                        : currentIssue.fix_visual ? "Bond will show a visual mock of the fix before you apply it."
-                        : "Pick a fix style below and Bond will tailor the solution to your skill level.";
-                      return `This ${cat} issue ${sev}. ${currentIssue.impact || "It affects how users perceive and trust the product."} ${action}`;
-                    })()}
-                  </p>
-                </div>
-
+                <h2 className="text-lg font-semibold text-foreground mb-3">{currentIssue.title}</h2>
                 <p className="text-sm text-secondary-foreground leading-relaxed mb-4">{currentIssue.description}</p>
                 
                 {currentIssue.impact && (

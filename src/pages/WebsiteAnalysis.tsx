@@ -1,8 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, Gauge, Eye, Accessibility, Search, Zap, AlertTriangle, TrendingUp, CalendarClock, X } from "lucide-react";
-import ScheduledScanDialog, { ScheduledScan } from "@/components/ScheduledScanDialog";
-import { sanitizeText, sanitizeUrl } from "@/lib/sanitize";
+import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, Gauge, Eye, Accessibility, Search, Zap, AlertTriangle, TrendingUp } from "lucide-react";
 import AIChatBar from "@/components/AIChatBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,6 +13,8 @@ import { toast } from "sonner";
 import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
 import SuggestedWebsites from "@/components/SuggestedWebsites";
 import SmartUrlError from "@/components/SmartUrlError";
+import EmptyState from "@/components/EmptyState";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { isProbablyValidUrl, normalizeUrl } from "@/lib/urlSuggest";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
@@ -44,8 +44,10 @@ interface PageSpeedMetrics {
 
 const WebsiteAnalysis = () => {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [websites, setWebsites] = useState<WebsiteRow[]>([]);
   const [newUrl, setNewUrl] = useState("");
+  const [removingId, setRemovingId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -62,28 +64,6 @@ const WebsiteAnalysis = () => {
   const [scanHistory, setScanHistory] = useState<Array<{ created_at: string; health_score: number | null; security_score: number | null }>>([]);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "issues">("overview");
-  const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [scheduledScans, setScheduledScans] = useState<Array<{ id: string; runAt: number; label: string; timer: number }>>([]);
-
-  const scheduleScan = (s: ScheduledScan) => {
-    const id = crypto.randomUUID();
-    const runAt = Date.now() + s.delayMs;
-    const timer = window.setTimeout(() => {
-      setScheduledScans(prev => prev.filter(x => x.id !== id));
-      runScan();
-      toast.success(`Scheduled scan running (${s.label.toLowerCase()})`);
-    }, s.delayMs) as unknown as number;
-    setScheduledScans(prev => [...prev, { id, runAt, label: s.label, timer }]);
-    toast.success(`Scan scheduled ${s.label.toLowerCase()}`);
-  };
-
-  const cancelScheduled = (id: string) => {
-    setScheduledScans(prev => {
-      const t = prev.find(x => x.id === id);
-      if (t) clearTimeout(t.timer);
-      return prev.filter(x => x.id !== id);
-    });
-  };
 
   const loadData = async () => {
     if (!user) return;
@@ -112,15 +92,19 @@ const WebsiteAnalysis = () => {
   useEffect(() => { loadData(); }, [user]);
 
   const addWebsite = async () => {
-    if (!newUrl.trim() || !user) return;
-    const trimmed = sanitizeText(newUrl.trim(), 500);
+    if (adding) return; // prevent double-submit
+    if (!newUrl.trim() || !user) {
+      setUrlError("__empty__");
+      return;
+    }
+    const trimmed = newUrl.trim();
     if (!isProbablyValidUrl(trimmed)) {
       setUrlError(trimmed);
       return;
     }
     setAdding(true);
     try {
-      const url = sanitizeUrl(normalizeUrl(trimmed)) || normalizeUrl(trimmed);
+      const url = normalizeUrl(trimmed);
       const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url, section: "analysis" }).select("id, url, name").single();
       if (error) throw error;
       if (data) {
@@ -133,9 +117,25 @@ const WebsiteAnalysis = () => {
     } catch (e: any) { toast.error(e.message); } finally { setAdding(false); }
   };
 
-  const removeWebsite = async (id: string) => {
-    await supabase.from("websites").delete().eq("id", id);
-    setWebsites(prev => prev.filter(w => w.id !== id));
+  const removeWebsite = async (id: string, url: string) => {
+    if (removingId) return;
+    const ok = await confirm({
+      title: "Remove this website?",
+      description: `${url} will be removed from monitoring. Past scan history is kept.`,
+      confirmText: "Remove",
+      destructive: true,
+    });
+    if (!ok) return;
+    setRemovingId(id);
+    try {
+      await supabase.from("websites").delete().eq("id", id);
+      setWebsites(prev => prev.filter(w => w.id !== id));
+      toast.success("Website removed");
+    } catch (e: any) {
+      toast.error(e.message || "Failed to remove");
+    } finally {
+      setRemovingId(null);
+    }
   };
 
   const runScan = async () => {
@@ -214,33 +214,12 @@ const WebsiteAnalysis = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{scanCount}/15 scans today</span>
-            <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={() => setScheduleOpen(true)}>
-              <CalendarClock className="w-3.5 h-3.5 mr-1.5" />Schedule
-            </Button>
             <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={runScan} disabled={scanning}>
               {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}Run Scan
             </Button>
           </div>
         </div>
-        {scheduledScans.length > 0 && (
-          <div className="mt-3 flex flex-wrap gap-2">
-            {scheduledScans.map(s => {
-              const minsLeft = Math.max(0, Math.round((s.runAt - Date.now()) / 60000));
-              return (
-                <div key={s.id} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/30 text-xs text-foreground">
-                  <CalendarClock className="w-3 h-3 text-primary" />
-                  <span>{s.label} <span className="text-muted-foreground">(~{minsLeft}m)</span></span>
-                  <button onClick={() => cancelScheduled(s.id)} aria-label="Cancel scheduled scan" className="text-muted-foreground hover:text-destructive">
-                    <X className="w-3 h-3" />
-                  </button>
-                </div>
-              );
-            })}
-          </div>
-        )}
       </motion.div>
-
-      <ScheduledScanDialog open={scheduleOpen} onOpenChange={setScheduleOpen} onSchedule={scheduleScan} />
 
       <SuggestedWebsites section="analysis" onAdopted={(w) => setWebsites(prev => [...prev, { id: w.id, url: w.url, name: w.name }])} />
 
@@ -254,7 +233,10 @@ const WebsiteAnalysis = () => {
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
         </div>
-        {urlError && (
+        {urlError === "__empty__" && (
+          <p className="text-xs text-destructive mb-3" role="alert">Please enter a website URL before adding.</p>
+        )}
+        {urlError && urlError !== "__empty__" && (
           <div className="mb-3">
             <SmartUrlError attemptedUrl={urlError} onPick={(u) => { setNewUrl(u); setUrlError(null); }} />
           </div>
@@ -266,8 +248,16 @@ const WebsiteAnalysis = () => {
                 <span className="text-foreground font-mono text-xs">{w.url}</span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => { setPendingWebsite(w); setAuthFlowOpen(true); }}
+                    aria-label={`Configure ${w.url}`}
                     className="text-muted-foreground hover:text-primary text-xs">Configure</button>
-                  <button onClick={() => removeWebsite(w.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button
+                    onClick={() => removeWebsite(w.id, w.url)}
+                    disabled={removingId === w.id}
+                    aria-label={`Remove ${w.url}`}
+                    className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+                  >
+                    {removingId === w.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
               </div>
             ))}
@@ -396,11 +386,16 @@ const WebsiteAnalysis = () => {
       )}
 
       {qaIssues.length === 0 && securityIssues.length === 0 && !psScores && (
-        <div className="bg-card border border-border rounded-lg p-8 text-center shadow-card">
-          <Globe className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground mb-1">No scan results yet</p>
-          <p className="text-xs text-muted-foreground">Add a website and run a scan to see AI + PageSpeed analysis.</p>
-        </div>
+        <EmptyState
+          icon={Globe}
+          title={websites.length === 0 ? "Add your first website" : "Run your first scan"}
+          description={
+            websites.length === 0
+              ? "Drop in a URL above to start tracking AI QA, PageSpeed, and security in one place."
+              : "Click 'Run Scan' to generate AI QA findings, performance metrics, and security checks."
+          }
+          action={websites.length > 0 ? { label: scanning ? "Scanning…" : "Run Scan", onClick: runScan } : undefined}
+        />
       )}
 
       {/* Auth Flow Dialog */}
