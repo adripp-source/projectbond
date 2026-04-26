@@ -214,12 +214,33 @@ const WebsiteAnalysis = () => {
           </div>
           <div className="flex items-center gap-2">
             <span className="text-xs text-muted-foreground">{scanCount}/15 scans today</span>
+            <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={() => setScheduleOpen(true)}>
+              <CalendarClock className="w-3.5 h-3.5 mr-1.5" />Schedule
+            </Button>
             <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={runScan} disabled={scanning}>
               {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}Run Scan
             </Button>
           </div>
         </div>
+        {scheduledScans.length > 0 && (
+          <div className="mt-3 flex flex-wrap gap-2">
+            {scheduledScans.map(s => {
+              const minsLeft = Math.max(0, Math.round((s.runAt - Date.now()) / 60000));
+              return (
+                <div key={s.id} className="inline-flex items-center gap-2 px-2.5 py-1 rounded-md bg-primary/10 border border-primary/30 text-xs text-foreground">
+                  <CalendarClock className="w-3 h-3 text-primary" />
+                  <span>{s.label} <span className="text-muted-foreground">(~{minsLeft}m)</span></span>
+                  <button onClick={() => cancelScheduled(s.id)} aria-label="Cancel scheduled scan" className="text-muted-foreground hover:text-destructive">
+                    <X className="w-3 h-3" />
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        )}
       </motion.div>
+
+      <ScheduledScanDialog open={scheduleOpen} onOpenChange={setScheduleOpen} onSchedule={scheduleScan} />
 
       <SuggestedWebsites section="analysis" onAdopted={(w) => setWebsites(prev => [...prev, { id: w.id, url: w.url, name: w.name }])} />
 
