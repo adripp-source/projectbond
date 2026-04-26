@@ -11,6 +11,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
+import SuggestedWebsites from "@/components/SuggestedWebsites";
+import SmartUrlError from "@/components/SmartUrlError";
+import { isProbablyValidUrl, normalizeUrl } from "@/lib/urlSuggest";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface WebsiteRow { id: string; url: string; name: string | null; }
 interface IssueData {
@@ -54,6 +58,8 @@ const WebsiteAnalysis = () => {
   const [authFlowOpen, setAuthFlowOpen] = useState(false);
   const [pendingWebsite, setPendingWebsite] = useState<WebsiteRow | null>(null);
   const [scanHistory, setScanHistory] = useState<Array<{ created_at: string; health_score: number | null; security_score: number | null }>>([]);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "issues">("overview");
 
   const loadData = async () => {
     if (!user) return;
@@ -83,9 +89,15 @@ const WebsiteAnalysis = () => {
 
   const addWebsite = async () => {
     if (!newUrl.trim() || !user) return;
+    const trimmed = newUrl.trim();
+    if (!isProbablyValidUrl(trimmed)) {
+      setUrlError(trimmed);
+      return;
+    }
     setAdding(true);
     try {
-      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "analysis" }).select("id, url, name").single();
+      const url = normalizeUrl(trimmed);
+      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url, section: "analysis" }).select("id, url, name").single();
       if (error) throw error;
       if (data) {
         setWebsites(prev => [...prev, data]);
@@ -93,6 +105,7 @@ const WebsiteAnalysis = () => {
         setAuthFlowOpen(true);
       }
       setNewUrl("");
+      setUrlError(null);
     } catch (e: any) { toast.error(e.message); } finally { setAdding(false); }
   };
 
