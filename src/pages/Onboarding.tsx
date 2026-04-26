@@ -491,6 +491,26 @@ const Onboarding = () => {
           </motion.div>
         )}
 
+        {step === "configure" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Globe className="w-6 h-6 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground mb-2">One quick setup</h2>
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              Tell Bond a bit about <span className="font-mono text-foreground text-xs break-all">{pendingWebsiteUrl}</span> so it knows what's safe to do during the scan.
+            </p>
+            {!configureOpen && (
+              <Button
+                onClick={() => setConfigureOpen(true)}
+                className="w-full h-11 bg-gradient-primary text-primary-foreground"
+              >
+                Open setup
+              </Button>
+            )}
+          </motion.div>
+        )}
+
         {step === "analyzing" && (
           <div className="text-center">
             <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
@@ -500,6 +520,25 @@ const Onboarding = () => {
           </div>
         )}
       </motion.div>
+
+      {/* Configure dialog — first sign-in flow */}
+      {pendingWebsiteId && (
+        <WebsiteAuthFlowDialog
+          open={configureOpen}
+          onOpenChange={(open) => {
+            setConfigureOpen(open);
+            if (!open && step === "configure" && !isAnalyzing) {
+              runInitialScan();
+            }
+          }}
+          websiteId={pendingWebsiteId}
+          websiteUrl={pendingWebsiteUrl}
+          onComplete={() => {
+            setConfigureOpen(false);
+            runInitialScan();
+          }}
+        />
+      )}
     </div>
   );
 };
