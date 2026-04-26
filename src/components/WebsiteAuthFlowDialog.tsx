@@ -350,6 +350,43 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                 </div>
               </div>
 
+              {/* Local / staging copy */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider flex items-center gap-1.5">
+                  <Server className="w-3 h-3" /> Local or staging copy
+                  <span className="text-[10px] font-normal normal-case text-muted-foreground/70">(strongly recommended)</span>
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setHasLocalCopy(v => !v)}
+                  className={`w-full text-left p-3 rounded-lg border transition-all flex items-start gap-3 ${
+                    hasLocalCopy ? "border-primary bg-primary/5" : "border-border bg-secondary/30 hover:border-primary/40"
+                  }`}
+                >
+                  <div className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                    hasLocalCopy ? "bg-primary border-primary" : "border-border bg-background"
+                  }`}>
+                    {hasLocalCopy && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-xs font-semibold text-foreground">
+                      I have a local or staging copy Bond can test against
+                    </p>
+                    <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                      A non-production mirror of your site (e.g. <span className="font-mono text-foreground/80">staging.example.com</span> or <span className="font-mono text-foreground/80">http://localhost:3000</span>). Bond will prefer this URL for any action that could change data, so your real users are never affected.
+                    </p>
+                  </div>
+                </button>
+                {hasLocalCopy && (
+                  <Input
+                    value={localCopyUrl}
+                    onChange={e => setLocalCopyUrl(e.target.value)}
+                    placeholder="https://staging.example.com  or  http://localhost:3000"
+                    className="mt-2 bg-secondary border-border text-foreground font-mono text-xs"
+                  />
+                )}
+              </div>
+
               {/* Login credentials */}
               <div>
                 <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider flex items-center gap-1.5">
