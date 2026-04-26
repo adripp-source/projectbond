@@ -122,14 +122,6 @@ const WebsiteAnalysis = () => {
     try {
       const url = sanitizeUrl(normalizeUrl(trimmed)) || normalizeUrl(trimmed);
       const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url, section: "analysis" }).select("id, url, name").single();
-    if (!isProbablyValidUrl(trimmed)) {
-      setUrlError(trimmed);
-      return;
-    }
-    setAdding(true);
-    try {
-      const url = normalizeUrl(trimmed);
-      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url, section: "analysis" }).select("id, url, name").single();
       if (error) throw error;
       if (data) {
         setWebsites(prev => [...prev, data]);
