@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
-import { Zap, ArrowRight, Globe, Loader2, Building, Code, Users, Blocks, Hash } from "lucide-react";
+import { Zap, ArrowRight, Globe, Loader2, Building, Code, Users, Blocks, Hash, Briefcase } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { supabase } from "@/integrations/supabase/client";
@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 const userTypes = [
   {
