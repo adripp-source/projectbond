@@ -5,7 +5,8 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import {
   Shield, Globe, Lock, AlertTriangle, CheckCircle2, ArrowRight,
-  FlaskConical, Rocket, CreditCard, HelpCircle, ExternalLink, Info
+  FlaskConical, Rocket, CreditCard, HelpCircle, ExternalLink, Info,
+  User, KeyRound, Eye, EyeOff, ShieldCheck
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
