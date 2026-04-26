@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, Gauge, Eye, Accessibility, Search, Zap, AlertTriangle, TrendingUp } from "lucide-react";
+import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, Gauge, Eye, Accessibility, Search, Zap, AlertTriangle, TrendingUp, CalendarClock, X } from "lucide-react";
+import ScheduledScanDialog, { ScheduledScan } from "@/components/ScheduledScanDialog";
+import { sanitizeText, sanitizeUrl } from "@/lib/sanitize";
 import AIChatBar from "@/components/AIChatBar";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
