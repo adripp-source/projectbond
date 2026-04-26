@@ -1,18 +1,31 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Settings, User, Bell, Shield, Globe, Save, Loader2, Code, Users, Blocks, ShieldCheck } from "lucide-react";
+import { Settings, User, Bell, Shield, Globe, Save, Loader2, Code, Users, Blocks, ShieldCheck, Briefcase } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 const userTypeLabels: Record<string, { label: string; icon: any }> = {
   dev_team: { label: "I have a dev team", icon: Users },
   developer: { label: "I code myself", icon: Code },
   nocode: { label: "I use no-code tools", icon: Blocks },
 };
+
+const TEAM_SIZES = [
+  { v: "solo", label: "Just me" },
+  { v: "small", label: "2–10" },
+  { v: "mid", label: "11–50" },
+  { v: "large", label: "50+" },
+];
+const CODE_SKILLS = [
+  { v: "none", label: "I don't code" },
+  { v: "some", label: "A little" },
+  { v: "lots", label: "Confident" },
+];
 
 const RESTART_WORD = "RESTART";
 
