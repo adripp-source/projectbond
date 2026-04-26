@@ -146,6 +146,14 @@ export default function FixIntentDialog({ open, onOpenChange, onConfirm, title, 
           </p>
         </div>
 
+        <TechnicalityMeter
+          value={technicality}
+          onChange={setTechnicality}
+          label="How technical should it be?"
+          hint="Some teammates need 'plain English'; others want real code. Drag to taste."
+          className="mt-3"
+        />
+
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="border-border text-foreground hover:bg-secondary">
             Cancel
