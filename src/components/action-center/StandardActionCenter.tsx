@@ -135,6 +135,42 @@ const StandardActionCenter = () => {
         </div>
       </motion.div>
 
+      {/* Executive verdict banner */}
+      {(() => {
+        const crit = issues.filter(i => i.priority === "critical").length;
+        const warn = issues.filter(i => i.priority === "warning").length;
+        const minor = issues.filter(i => i.priority === "low").length;
+        const verdict = crit > 0 ? "NEEDS IMPROVEMENT" : warn > 2 ? "STABLE WITH GAPS" : "HEALTHY";
+        const verdictColor = crit > 0 ? "text-destructive" : warn > 2 ? "text-warning" : "text-success";
+        return (
+          <motion.div
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="mb-6 bg-card border border-border rounded-xl p-5 shadow-card"
+          >
+            <div className="flex items-start gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center flex-shrink-0">
+                <Sparkles className="w-4 h-4 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-sm font-semibold text-foreground">Executive Summary</h2>
+                  <span className={`text-[10px] font-bold uppercase tracking-wider ${verdictColor}`}>· Verdict: {verdict}</span>
+                </div>
+                <p className="text-sm text-secondary-foreground leading-relaxed">
+                  ProjectBond is a functional MVP for project &amp; task management, but it currently lacks the robust polish
+                  and security infrastructure required for handling sensitive business data. We found{" "}
+                  <span className="text-destructive font-semibold">{crit} critical</span>,{" "}
+                  <span className="text-warning font-semibold">{warn} needing attention</span>, and{" "}
+                  <span className="text-success font-semibold">{minor} minor</span> issues across security, UX, and accessibility.
+                  The top priority is implementing comprehensive input sanitization and finishing empty-state logic to prevent
+                  a "hollow" user experience. Fixing these will immediately increase user trust and platform scalability.
+                </p>
+              </div>
+            </div>
+          </motion.div>
+        );
+      })()}
       {viewMode === "focus" && currentIssue ? (
         /* Focus View - One issue at a time */
         <div>
