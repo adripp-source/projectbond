@@ -205,7 +205,7 @@ const StandardActionCenter = () => {
                   {fixResult && (
                     <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
                       className="bg-secondary rounded-lg p-4">
-                      <pre className="text-xs text-secondary-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-64 overflow-y-auto">
+                      <pre className="text-xs text-secondary-foreground whitespace-pre-wrap font-mono leading-relaxed">
                         {fixResult}
                       </pre>
                     </motion.div>
@@ -219,7 +219,7 @@ const StandardActionCenter = () => {
                   ].filter(f => f.value && !fixResult).map(({ key, label, value }) => (
                     <div key={key} className="mt-3 bg-secondary rounded-lg p-3">
                       <h6 className="text-xs font-semibold text-foreground mb-2">{label}</h6>
-                      <pre className="text-xs text-secondary-foreground whitespace-pre-wrap font-mono leading-relaxed max-h-48 overflow-y-auto">
+                      <pre className="text-xs text-secondary-foreground whitespace-pre-wrap font-mono leading-relaxed">
                         {value}
                       </pre>
                     </div>
