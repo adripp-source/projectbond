@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   Paintbrush, MousePointer2, Type, Square, Code, FileText,
   Plus, Loader2, Trash2, Globe, X, MessageSquare, Undo2, Download,
-  Hand, Crosshair, PlusCircle, Highlighter, Move, ChevronRight
+  Hand, Crosshair, PlusCircle, Highlighter, Move, ChevronRight, Layers
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import AIChatBar from "@/components/AIChatBar";
+import FigmaCanvas from "@/components/visual-editor/FigmaCanvas";
 
 type ToolType = "browse" | "cursor" | "highlight" | "text" | "box" | "move";
 
@@ -176,6 +177,7 @@ const VisualEditor = () => {
   const canvasRef = useRef<HTMLDivElement>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const colorIndex = useRef(0);
+  const [canvasMode, setCanvasMode] = useState(false);
 
   const overlayActive = activeTool !== "browse" && activeTool !== "cursor";
   const isCursorMode = activeTool === "cursor";
@@ -467,6 +469,13 @@ const VisualEditor = () => {
         <Button size="sm" variant="outline" onClick={() => setShowManage(!showManage)} className="border-border text-foreground hover:bg-secondary">
           <Globe className="w-3.5 h-3.5 mr-1.5" />Sites
         </Button>
+        {activeUrl && (
+          <Button size="sm" onClick={() => setCanvasMode(true)}
+            className="bg-gradient-primary text-primary-foreground"
+            title="Open Figma-style design canvas">
+            <Layers className="w-3.5 h-3.5 mr-1.5" />Canvas
+          </Button>
+        )}
         {annotations.length > 0 && (
           <Button size="sm" variant="outline" onClick={undoLast} className="border-border text-foreground hover:bg-secondary">
             <Undo2 className="w-3.5 h-3.5" />
@@ -776,6 +785,11 @@ const VisualEditor = () => {
 
       {/* AI Chat Bar */}
       <AIChatBar context="editor" placeholder="Ask about this UI..." />
+
+      {/* Figma-style canvas overlay */}
+      {canvasMode && activeUrl && (
+        <FigmaCanvas url={activeUrl} onClose={() => setCanvasMode(false)} />
+      )}
     </div>
   );
 };
