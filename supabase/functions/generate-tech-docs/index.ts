@@ -30,7 +30,7 @@ serve(async (req) => {
       });
     }
 
-    const { url, mode = 'docs', login_url, login_notes } = await req.json();
+    const { url, mode = 'docs', login_url, login_notes, audience_role, depth } = await req.json();
     if (!url) {
       return new Response(JSON.stringify({ error: 'URL is required' }), {
         status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
