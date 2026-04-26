@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
 
 const userTypes = [
   {
@@ -30,7 +31,7 @@ const userTypes = [
   },
 ];
 
-type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "analyzing";
+type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "configure" | "analyzing";
 
 const Onboarding = () => {
   const [url, setUrl] = useState("");
@@ -43,6 +44,9 @@ const Onboarding = () => {
   const [generatedCode, setGeneratedCode] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [codeError, setCodeError] = useState("");
+  const [pendingWebsiteId, setPendingWebsiteId] = useState<string | null>(null);
+  const [pendingWebsiteUrl, setPendingWebsiteUrl] = useState<string>("");
+  const [configureOpen, setConfigureOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -146,17 +150,17 @@ const Onboarding = () => {
     }
   };
 
+  // Step 1: Save website + show Configure dialog (so user sets safety/preferences before scan)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim() || !user) return;
-    setIsAnalyzing(true);
-    setStep("analyzing");
 
     try {
-      setProgress("Saving website...");
-      const { error: websiteError } = await supabase
+      const { data: site, error: websiteError } = await supabase
         .from("websites")
-        .insert({ user_id: user.id, url: url.trim(), name: companyName.trim() || null, section: "general" });
+        .insert({ user_id: user.id, url: url.trim(), name: companyName.trim() || null, section: "general" })
+        .select("id, url")
+        .single();
       if (websiteError) throw websiteError;
 
       if (companyName.trim()) {
@@ -166,8 +170,25 @@ const Onboarding = () => {
         );
       }
 
+      // Trigger Configure dialog before scanning
+      setPendingWebsiteId(site.id);
+      setPendingWebsiteUrl(site.url);
+      setConfigureOpen(true);
+      setStep("configure");
+    } catch (error: any) {
+      console.error("Save error:", error);
+      toast.error(error.message || "Couldn't save website");
+    }
+  };
+
+  // Step 2: After Configure is saved, run the actual scans
+  const runInitialScan = async () => {
+    if (!user || !pendingWebsiteUrl) return;
+    setIsAnalyzing(true);
+    setStep("analyzing");
+    try {
       setProgress("Analyzing website with AI...");
-      await api.analyzeWebsite(url.trim(), companyName.trim() || undefined);
+      await api.analyzeWebsite(pendingWebsiteUrl, companyName.trim() || undefined);
 
       if (companyName.trim()) {
         setProgress("Analyzing brand perception...");
@@ -184,12 +205,10 @@ const Onboarding = () => {
     } catch (error: any) {
       console.error("Onboarding error:", error);
       toast.error(error.message || "Analysis failed. You can retry from the dashboard.");
-      if (user) {
-        await supabase
-          .from("profiles")
-          .update({ onboarding_completed: true })
-          .eq("user_id", user.id);
-      }
+      await supabase
+        .from("profiles")
+        .update({ onboarding_completed: true })
+        .eq("user_id", user.id);
       navigate("/home");
     }
   };
