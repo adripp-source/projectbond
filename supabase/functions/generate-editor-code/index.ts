@@ -44,7 +44,7 @@ serve(async (req) => {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'google/gemini-3-flash-preview',
+          model: 'google/gemini-2.5-flash-lite',
           messages: [
             {
               role: 'system',
@@ -137,7 +137,7 @@ Generate 8-15 nodes with logical positions (x: 100-900, y: 80-700). Space them i
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-3-flash-preview',
+        model: 'google/gemini-2.5-flash-lite',
         messages: [
           {
             role: 'system',
