@@ -152,6 +152,10 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         allow_form_submission: allowForms,
         block_destructive: blockDestructive,
         allow_test_actions: true,
+        test_username: requiresLogin ? (testUsername || null) : null,
+        test_password: requiresLogin ? (testPassword || null) : null,
+        permission_granted: requiresLogin ? permissionGranted : false,
+        permission_granted_at: requiresLogin && permissionGranted ? new Date().toISOString() : null,
       } as any, { onConflict: "website_id" });
 
       await supabase.from("scan_preferences" as any).upsert({
