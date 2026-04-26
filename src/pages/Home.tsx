@@ -173,7 +173,7 @@ const Home = () => {
   const securityDelta = getScoreDelta(scan.security_score, prevScan?.security_score ?? null);
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-6 lg:p-10 max-w-[1400px] mx-auto w-full">
       {/* Greeting */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="flex items-center justify-between">
