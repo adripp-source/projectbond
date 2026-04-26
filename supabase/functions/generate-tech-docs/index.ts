@@ -232,21 +232,32 @@ serve(async (req) => {
       ? `Tailor the language, examples, and depth for this audience: "${audience_role}". Avoid jargon they wouldn't know. If they're non-technical, skip code-level setup and focus on what each part of the site does and why.`
       : 'Write for a general new-hire audience — friendly, plain English, useful across roles.';
 
+    const techHint = (() => {
+      const t = Number(technicality) || 3;
+      if (t <= 1) return 'TECHNICALITY = 1/5 (Plain English): Zero jargon. No code. Use everyday analogies. Skip env vars and architecture diagrams unless explained in plain words.';
+      if (t === 2) return 'TECHNICALITY = 2/5 (Friendly): Light tech words, always explained the first time. Avoid code blocks unless trivial.';
+      if (t === 3) return 'TECHNICALITY = 3/5 (Balanced): Mix plain English and accurate technical terms. Short code snippets where they help.';
+      if (t === 4) return 'TECHNICALITY = 4/5 (Technical): Use real terms, code snippets, configs, and dependency names. Assume the reader can read code.';
+      return 'TECHNICALITY = 5/5 (Deeply technical): Architecture, edge cases, scaling notes, internals. Assume a senior engineer.';
+    })();
+
     const systemPrompt = mode === 'features'
-      ? `You are an expert product analyst. Given a website's HTML and URL, extract concrete features that exist on the site (auth, search, cart, blog, contact form, etc.) and a short list of high-impact recommended features it's missing. Be specific to what you see. ${audienceHint}`
-      : `You are a senior team lead writing an onboarding guide for a new hire joining the team that owns this website. ${audienceHint} ${depthHint} Be concrete, friendly, and practical. Avoid generic boilerplate. Use the HTML signals (frameworks, scripts, meta tags, page structure) to make specific guesses. If you're not sure, say "likely" — never invent versions or files that don't exist.`;
+      ? `You are an expert product analyst. Given a website's HTML and URL, extract concrete features that exist on the site (auth, search, cart, blog, contact form, etc.) and a short list of high-impact recommended features it's missing. Be specific to what you see. ${audienceHint} ${techHint}`
+      : `You are a senior team lead writing an onboarding guide for a new hire joining the team that owns this website. ${audienceHint} ${depthHint} ${techHint} Be concrete, friendly, and practical. Avoid generic boilerplate. Use the HTML signals (frameworks, scripts, meta tags, page structure) to make specific guesses. If you're not sure, say "likely" — never invent versions or files that don't exist. For architecture_diagram, give 4–8 nodes spanning frontend/backend/data/integration layers with the connects_to graph filled in. For database_schema_guess, infer 3–8 likely tables from visible features (users, sessions, orders, posts, etc.). For user_workflows, list the 3–5 most important journeys end-to-end.`;
 
     const userPrompt = `Website URL: ${formatted}
 Page title: ${pageTitle || '(unknown)'}
 Audience / role: ${audience_role || '(general new hire)'}
 Depth: ${depth || 'standard'}
+${technicality ? `Technicality level: ${technicality}/5` : ''}
+${github_repo_url ? `Public GitHub repo (use as additional signal): ${github_repo_url}` : ''}
 ${login_url ? `Login URL provided: ${login_url}` : ''}
 ${login_notes ? `Extra instructions from the user: ${login_notes}` : ''}
 
 HTML sample (first 25KB):
 ${html || '(could not fetch — work from URL alone)'}
 
-${mode === 'features' ? 'Extract detected features and recommend high-impact missing ones.' : 'Generate the onboarding doc.'}`;
+${mode === 'features' ? 'Extract detected features and recommend high-impact missing ones.' : 'Generate the onboarding doc with all sections filled in.'}`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
