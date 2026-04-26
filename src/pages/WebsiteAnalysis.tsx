@@ -233,7 +233,10 @@ const WebsiteAnalysis = () => {
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
         </div>
-        {urlError && (
+        {urlError === "__empty__" && (
+          <p className="text-xs text-destructive mb-3" role="alert">Please enter a website URL before adding.</p>
+        )}
+        {urlError && urlError !== "__empty__" && (
           <div className="mb-3">
             <SmartUrlError attemptedUrl={urlError} onPick={(u) => { setNewUrl(u); setUrlError(null); }} />
           </div>
@@ -245,8 +248,16 @@ const WebsiteAnalysis = () => {
                 <span className="text-foreground font-mono text-xs">{w.url}</span>
                 <div className="flex items-center gap-2">
                   <button onClick={() => { setPendingWebsite(w); setAuthFlowOpen(true); }}
+                    aria-label={`Configure ${w.url}`}
                     className="text-muted-foreground hover:text-primary text-xs">Configure</button>
-                  <button onClick={() => removeWebsite(w.id)} className="text-muted-foreground hover:text-destructive"><Trash2 className="w-3.5 h-3.5" /></button>
+                  <button
+                    onClick={() => removeWebsite(w.id, w.url)}
+                    disabled={removingId === w.id}
+                    aria-label={`Remove ${w.url}`}
+                    className="text-muted-foreground hover:text-destructive disabled:opacity-50"
+                  >
+                    {removingId === w.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+                  </button>
                 </div>
               </div>
             ))}
