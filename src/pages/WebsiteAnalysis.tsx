@@ -11,6 +11,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
 import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
+import SuggestedWebsites from "@/components/SuggestedWebsites";
+import SmartUrlError from "@/components/SmartUrlError";
+import { isProbablyValidUrl, normalizeUrl } from "@/lib/urlSuggest";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface WebsiteRow { id: string; url: string; name: string | null; }
 interface IssueData {
@@ -54,6 +58,8 @@ const WebsiteAnalysis = () => {
   const [authFlowOpen, setAuthFlowOpen] = useState(false);
   const [pendingWebsite, setPendingWebsite] = useState<WebsiteRow | null>(null);
   const [scanHistory, setScanHistory] = useState<Array<{ created_at: string; health_score: number | null; security_score: number | null }>>([]);
+  const [urlError, setUrlError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"overview" | "performance" | "issues">("overview");
 
   const loadData = async () => {
     if (!user) return;
@@ -83,9 +89,15 @@ const WebsiteAnalysis = () => {
 
   const addWebsite = async () => {
     if (!newUrl.trim() || !user) return;
+    const trimmed = newUrl.trim();
+    if (!isProbablyValidUrl(trimmed)) {
+      setUrlError(trimmed);
+      return;
+    }
     setAdding(true);
     try {
-      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url: newUrl.trim(), section: "analysis" }).select("id, url, name").single();
+      const url = normalizeUrl(trimmed);
+      const { data, error } = await supabase.from("websites").insert({ user_id: user.id, url, section: "analysis" }).select("id, url, name").single();
       if (error) throw error;
       if (data) {
         setWebsites(prev => [...prev, data]);
@@ -93,6 +105,7 @@ const WebsiteAnalysis = () => {
         setAuthFlowOpen(true);
       }
       setNewUrl("");
+      setUrlError(null);
     } catch (e: any) { toast.error(e.message); } finally { setAdding(false); }
   };
 
@@ -184,16 +197,23 @@ const WebsiteAnalysis = () => {
         </div>
       </motion.div>
 
+      <SuggestedWebsites section="analysis" onAdopted={(w) => setWebsites(prev => [...prev, { id: w.id, url: w.url, name: w.name }])} />
+
       {/* Add website */}
       <div className="bg-card border border-border rounded-lg p-4 mb-6 shadow-card">
         <h3 className="text-sm font-semibold text-foreground mb-3">Monitored Websites</h3>
         <div className="flex gap-2 mb-3">
-          <Input placeholder="https://yourwebsite.com" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} className="bg-secondary border-border text-foreground"
+          <Input placeholder="https://yourwebsite.com" value={newUrl} onChange={(e) => { setNewUrl(e.target.value); setUrlError(null); }} className="bg-secondary border-border text-foreground"
             onKeyDown={e => e.key === "Enter" && addWebsite()} />
           <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" className="bg-gradient-primary text-primary-foreground">
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
         </div>
+        {urlError && (
+          <div className="mb-3">
+            <SmartUrlError attemptedUrl={urlError} onPick={(u) => { setNewUrl(u); setUrlError(null); }} />
+          </div>
+        )}
         {websites.length > 0 && (
           <div className="space-y-1">
             {websites.map(w => (
