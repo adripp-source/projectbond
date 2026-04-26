@@ -3,10 +3,9 @@ import { motion } from "framer-motion";
 import {
   BookOpen, Sparkles, Loader2, Globe, Plus, FileCode, Layers,
   ListChecks, Lock, AlertTriangle, ChevronRight, Wand2, Trash2, ListPlus, Download,
+  Database, Workflow, Plug,
 } from "lucide-react";
-import { useRef } from "react";
 import jsPDF from "jspdf";
-import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -26,6 +25,10 @@ interface DocsResult {
   project_overview: string;
   tech_stack_guess: { name: string; why_we_think_so: string }[];
   architecture: string;
+  architecture_diagram?: { name: string; role: string; layer: string; connects_to: string[] }[];
+  database_schema_guess?: { name: string; purpose: string; key_fields: string[] }[];
+  user_workflows?: { name: string; steps: string[] }[];
+  integrations?: { name: string; purpose: string }[];
   key_pages: { path: string; purpose: string }[];
   local_setup: string[];
   env_vars_likely: string[];
