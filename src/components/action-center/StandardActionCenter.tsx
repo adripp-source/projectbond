@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Target, Loader2, ArrowRight, ChevronLeft, ChevronRight, ArrowUpRight } from "lucide-react";
+import { Target, Loader2, ArrowRight, ChevronLeft, ChevronRight, ArrowUpRight, ShieldAlert, Sparkles } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
