@@ -165,19 +165,33 @@ serve(async (req) => {
       },
     ];
 
+    const depthHint = depth === 'quick'
+      ? 'Keep it brief — a snapshot a non-technical teammate could read in 2 minutes.'
+      : depth === 'deep'
+        ? 'Go thorough — a full handoff with setup, pitfalls, and a real first-week checklist.'
+        : depth === 'custom'
+          ? 'Follow the user notes below precisely.'
+          : 'Balanced depth — practical and complete without being exhausting.';
+
+    const audienceHint = audience_role
+      ? `Tailor the language, examples, and depth for this audience: "${audience_role}". Avoid jargon they wouldn't know. If they're non-technical, skip code-level setup and focus on what each part of the site does and why.`
+      : 'Write for a general new-hire audience — friendly, plain English, useful across roles.';
+
     const systemPrompt = mode === 'features'
-      ? `You are an expert product analyst. Given a website's HTML and URL, extract concrete features that exist on the site (auth, search, cart, blog, contact form, etc.) and a short list of high-impact recommended features it's missing. Be specific to what you see.`
-      : `You are a senior engineer writing an onboarding guide for a new developer joining this project. Be concrete, friendly, and practical. Avoid generic boilerplate. Use the HTML signals (frameworks, scripts, meta tags, page structure) to make specific guesses. If you're not sure, say "likely" — never invent versions or files that don't exist.`;
+      ? `You are an expert product analyst. Given a website's HTML and URL, extract concrete features that exist on the site (auth, search, cart, blog, contact form, etc.) and a short list of high-impact recommended features it's missing. Be specific to what you see. ${audienceHint}`
+      : `You are a senior team lead writing an onboarding guide for a new hire joining the team that owns this website. ${audienceHint} ${depthHint} Be concrete, friendly, and practical. Avoid generic boilerplate. Use the HTML signals (frameworks, scripts, meta tags, page structure) to make specific guesses. If you're not sure, say "likely" — never invent versions or files that don't exist.`;
 
     const userPrompt = `Website URL: ${formatted}
 Page title: ${pageTitle || '(unknown)'}
+Audience / role: ${audience_role || '(general new hire)'}
+Depth: ${depth || 'standard'}
 ${login_url ? `Login URL provided: ${login_url}` : ''}
-${login_notes ? `Login notes: ${login_notes}` : ''}
+${login_notes ? `Extra instructions from the user: ${login_notes}` : ''}
 
 HTML sample (first 25KB):
 ${html || '(could not fetch — work from URL alone)'}
 
-${mode === 'features' ? 'Extract detected features and recommend high-impact missing ones.' : 'Generate the developer onboarding doc.'}`;
+${mode === 'features' ? 'Extract detected features and recommend high-impact missing ones.' : 'Generate the onboarding doc.'}`;
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
