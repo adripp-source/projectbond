@@ -8,6 +8,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { toast } from "sonner";
+import WebsiteAuthFlowDialog from "@/components/WebsiteAuthFlowDialog";
 
 const userTypes = [
   {
@@ -30,7 +31,7 @@ const userTypes = [
   },
 ];
 
-type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "analyzing";
+type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "configure" | "analyzing";
 
 const Onboarding = () => {
   const [url, setUrl] = useState("");
@@ -43,6 +44,9 @@ const Onboarding = () => {
   const [generatedCode, setGeneratedCode] = useState("");
   const [workspaceName, setWorkspaceName] = useState("");
   const [codeError, setCodeError] = useState("");
+  const [pendingWebsiteId, setPendingWebsiteId] = useState<string | null>(null);
+  const [pendingWebsiteUrl, setPendingWebsiteUrl] = useState<string>("");
+  const [configureOpen, setConfigureOpen] = useState(false);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -146,17 +150,17 @@ const Onboarding = () => {
     }
   };
 
+  // Step 1: Save website + show Configure dialog (so user sets safety/preferences before scan)
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!url.trim() || !user) return;
-    setIsAnalyzing(true);
-    setStep("analyzing");
 
     try {
-      setProgress("Saving website...");
-      const { error: websiteError } = await supabase
+      const { data: site, error: websiteError } = await supabase
         .from("websites")
-        .insert({ user_id: user.id, url: url.trim(), name: companyName.trim() || null, section: "general" });
+        .insert({ user_id: user.id, url: url.trim(), name: companyName.trim() || null, section: "general" })
+        .select("id, url")
+        .single();
       if (websiteError) throw websiteError;
 
       if (companyName.trim()) {
@@ -166,8 +170,25 @@ const Onboarding = () => {
         );
       }
 
+      // Trigger Configure dialog before scanning
+      setPendingWebsiteId(site.id);
+      setPendingWebsiteUrl(site.url);
+      setConfigureOpen(true);
+      setStep("configure");
+    } catch (error: any) {
+      console.error("Save error:", error);
+      toast.error(error.message || "Couldn't save website");
+    }
+  };
+
+  // Step 2: After Configure is saved, run the actual scans
+  const runInitialScan = async () => {
+    if (!user || !pendingWebsiteUrl) return;
+    setIsAnalyzing(true);
+    setStep("analyzing");
+    try {
       setProgress("Analyzing website with AI...");
-      await api.analyzeWebsite(url.trim(), companyName.trim() || undefined);
+      await api.analyzeWebsite(pendingWebsiteUrl, companyName.trim() || undefined);
 
       if (companyName.trim()) {
         setProgress("Analyzing brand perception...");
@@ -184,12 +205,10 @@ const Onboarding = () => {
     } catch (error: any) {
       console.error("Onboarding error:", error);
       toast.error(error.message || "Analysis failed. You can retry from the dashboard.");
-      if (user) {
-        await supabase
-          .from("profiles")
-          .update({ onboarding_completed: true })
-          .eq("user_id", user.id);
-      }
+      await supabase
+        .from("profiles")
+        .update({ onboarding_completed: true })
+        .eq("user_id", user.id);
       navigate("/home");
     }
   };
@@ -472,6 +491,26 @@ const Onboarding = () => {
           </motion.div>
         )}
 
+        {step === "configure" && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="text-center">
+            <div className="w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
+              <Globe className="w-6 h-6 text-primary" />
+            </div>
+            <h2 className="text-lg font-semibold text-foreground mb-2">One quick setup</h2>
+            <p className="text-sm text-muted-foreground mb-6 leading-relaxed">
+              Tell Bond a bit about <span className="font-mono text-foreground text-xs break-all">{pendingWebsiteUrl}</span> so it knows what's safe to do during the scan.
+            </p>
+            {!configureOpen && (
+              <Button
+                onClick={() => setConfigureOpen(true)}
+                className="w-full h-11 bg-gradient-primary text-primary-foreground"
+              >
+                Open setup
+              </Button>
+            )}
+          </motion.div>
+        )}
+
         {step === "analyzing" && (
           <div className="text-center">
             <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto mb-4" />
@@ -481,6 +520,25 @@ const Onboarding = () => {
           </div>
         )}
       </motion.div>
+
+      {/* Configure dialog — first sign-in flow */}
+      {pendingWebsiteId && (
+        <WebsiteAuthFlowDialog
+          open={configureOpen}
+          onOpenChange={(open) => {
+            setConfigureOpen(open);
+            if (!open && step === "configure" && !isAnalyzing) {
+              runInitialScan();
+            }
+          }}
+          websiteId={pendingWebsiteId}
+          websiteUrl={pendingWebsiteUrl}
+          onComplete={() => {
+            setConfigureOpen(false);
+            runInitialScan();
+          }}
+        />
+      )}
     </div>
   );
 };
