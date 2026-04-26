@@ -2,13 +2,15 @@ import { useState } from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Zap, Wrench, Microscope, MessageSquareMore } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { FileText, Wrench, BookOpen, MessageSquareMore, Briefcase } from "lucide-react";
 
 export type FixLevel = "quick" | "standard" | "deep" | "custom";
 
 export interface FixIntent {
   level: FixLevel;
   custom?: string;
+  role?: string;
 }
 
 interface Props {
@@ -22,26 +24,26 @@ interface Props {
 const LEVELS: { id: FixLevel; icon: any; label: string; tagline: string; desc: string; time: string; }[] = [
   {
     id: "quick",
-    icon: Zap,
-    label: "Quick fix",
-    tagline: "Smallest possible change",
-    desc: "Just patch the obvious thing. No restructuring, no extras. Best when you trust the existing layout.",
+    icon: FileText,
+    label: "Snapshot",
+    tagline: "Quick overview",
+    desc: "A short, plain-English summary of the site so a new hire gets the gist in a couple of minutes. Best for non-technical teammates or first-day intros.",
     time: "~10s",
   },
   {
     id: "standard",
     icon: Wrench,
     label: "Standard",
-    tagline: "Balanced rewrite",
-    desc: "Fix the issue and clean up nearby code. Adds light improvements (a11y, naming, small UX).",
+    tagline: "Balanced guide",
+    desc: "A practical onboarding doc with the main sections, key pages, and what to learn first. Good fit for most new hires across roles.",
     time: "~25s",
   },
   {
     id: "deep",
-    icon: Microscope,
-    label: "Deep refactor",
-    tagline: "Best long-term solution",
-    desc: "Re-think the section, follow best practices, and explain trade-offs. Use when something feels off.",
+    icon: BookOpen,
+    label: "Full handoff",
+    tagline: "Thorough walkthrough",
+    desc: "A detailed onboarding handoff covering setup steps, common pitfalls, and a first-week checklist. Use when someone is taking real ownership.",
     time: "~40s",
   },
   {
@@ -49,7 +51,7 @@ const LEVELS: { id: FixLevel; icon: any; label: string; tagline: string; desc: s
     icon: MessageSquareMore,
     label: "Custom",
     tagline: "Describe it yourself",
-    desc: "Tell Bond exactly what 'fixed' means for you and we'll tailor the outcome to that.",
+    desc: "Tell Bond exactly what the doc should cover and we'll tailor the outcome to that — sections, depth, audience, anything.",
     time: "varies",
   },
 ];
@@ -57,11 +59,17 @@ const LEVELS: { id: FixLevel; icon: any; label: string; tagline: string; desc: s
 export default function FixIntentDialog({ open, onOpenChange, onConfirm, title, description }: Props) {
   const [level, setLevel] = useState<FixLevel>("standard");
   const [custom, setCustom] = useState("");
+  const [role, setRole] = useState("");
 
   const submit = () => {
-    onConfirm({ level, custom: level === "custom" ? custom.trim() : undefined });
+    onConfirm({
+      level,
+      custom: level === "custom" ? custom.trim() : undefined,
+      role: role.trim() || undefined,
+    });
     onOpenChange(false);
     setCustom("");
+    setRole("");
     setLevel("standard");
   };
 
