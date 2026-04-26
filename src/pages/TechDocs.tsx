@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   BookOpen, Sparkles, Loader2, Globe, Plus, FileCode, Layers,
-  ListChecks, Lock, AlertTriangle, ChevronRight, Wand2, Trash2, ListPlus,
+  ListChecks, Lock, AlertTriangle, ChevronRight, Wand2, Trash2, ListPlus, Download,
 } from "lucide-react";
+import { useRef } from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
