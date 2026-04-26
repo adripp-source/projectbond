@@ -62,6 +62,28 @@ const WebsiteAnalysis = () => {
   const [scanHistory, setScanHistory] = useState<Array<{ created_at: string; health_score: number | null; security_score: number | null }>>([]);
   const [urlError, setUrlError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "performance" | "issues">("overview");
+  const [scheduleOpen, setScheduleOpen] = useState(false);
+  const [scheduledScans, setScheduledScans] = useState<Array<{ id: string; runAt: number; label: string; timer: number }>>([]);
+
+  const scheduleScan = (s: ScheduledScan) => {
+    const id = crypto.randomUUID();
+    const runAt = Date.now() + s.delayMs;
+    const timer = window.setTimeout(() => {
+      setScheduledScans(prev => prev.filter(x => x.id !== id));
+      runScan();
+      toast.success(`Scheduled scan running (${s.label.toLowerCase()})`);
+    }, s.delayMs) as unknown as number;
+    setScheduledScans(prev => [...prev, { id, runAt, label: s.label, timer }]);
+    toast.success(`Scan scheduled ${s.label.toLowerCase()}`);
+  };
+
+  const cancelScheduled = (id: string) => {
+    setScheduledScans(prev => {
+      const t = prev.find(x => x.id === id);
+      if (t) clearTimeout(t.timer);
+      return prev.filter(x => x.id !== id);
+    });
+  };
 
   const loadData = async () => {
     if (!user) return;
