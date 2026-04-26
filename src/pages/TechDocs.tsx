@@ -371,6 +371,73 @@ const TechDocs = () => {
                 <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{docs.architecture}</p>
               </Section>
 
+              {docs.architecture_diagram && docs.architecture_diagram.length > 0 && (
+                <Section icon={Workflow} title="Architecture Diagram">
+                  <div className="grid grid-cols-2 gap-2">
+                    {docs.architecture_diagram.map((c, i) => (
+                      <div key={i} className="bg-secondary/40 border border-border rounded-md p-3">
+                        <div className="flex items-center justify-between mb-1">
+                          <p className="text-sm font-semibold text-foreground">{c.name}</p>
+                          <Badge variant="outline" className="text-[9px] uppercase">{c.layer}</Badge>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{c.role}</p>
+                        {c.connects_to.length > 0 && (
+                          <p className="text-[10px] text-muted-foreground/70 mt-1.5">↳ {c.connects_to.join(", ")}</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {docs.database_schema_guess && docs.database_schema_guess.length > 0 && (
+                <Section icon={Database} title="Likely Database Schema">
+                  <div className="space-y-2">
+                    {docs.database_schema_guess.map((t, i) => (
+                      <div key={i} className="bg-secondary/40 border border-border rounded-md p-3">
+                        <p className="text-sm font-semibold text-foreground">{t.name}</p>
+                        <p className="text-xs text-muted-foreground mb-1.5">{t.purpose}</p>
+                        <div className="flex flex-wrap gap-1">
+                          {t.key_fields.map((f, j) => (
+                            <code key={j} className="text-[10px] bg-secondary px-1.5 py-0.5 rounded font-mono text-foreground">{f}</code>
+                          ))}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {docs.user_workflows && docs.user_workflows.length > 0 && (
+                <Section icon={Workflow} title="Common User Workflows">
+                  <div className="space-y-3">
+                    {docs.user_workflows.map((w, i) => (
+                      <div key={i}>
+                        <p className="text-sm font-semibold text-foreground mb-1">{w.name}</p>
+                        <ol className="space-y-0.5 list-decimal list-inside">
+                          {w.steps.map((s, j) => (
+                            <li key={j} className="text-xs text-muted-foreground">{s}</li>
+                          ))}
+                        </ol>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
+              {docs.integrations && docs.integrations.length > 0 && (
+                <Section icon={Plug} title="Integrations">
+                  <div className="grid grid-cols-2 gap-2">
+                    {docs.integrations.map((it, idx) => (
+                      <div key={idx} className="bg-secondary/40 border border-border rounded-md p-2">
+                        <p className="text-sm font-semibold text-foreground">{it.name}</p>
+                        <p className="text-xs text-muted-foreground">{it.purpose}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Section>
+              )}
+
               <Section icon={ChevronRight} title="Key Pages">
                 <div className="space-y-1.5">
                   {docs.key_pages.map((p, i) => (
