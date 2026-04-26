@@ -626,6 +626,15 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                   <li>Break user progress in active sessions</li>
                 </ul>
               </div>
+
+              {/* GitHub repo (per-website) */}
+              <GithubRepoInput
+                value={githubRepoUrl}
+                onChange={setGithubRepoUrl}
+                isPublic={githubIsPublic}
+                onIsPublicChange={setGithubIsPublic}
+              />
+
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep("auth_details")} className="border-border">Back</Button>
                 <Button onClick={() => setStep("preferences")} className="flex-1 bg-gradient-primary text-primary-foreground">
