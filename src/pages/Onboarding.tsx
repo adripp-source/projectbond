@@ -61,6 +61,11 @@ const Onboarding = () => {
   const [pendingWebsiteId, setPendingWebsiteId] = useState<string | null>(null);
   const [pendingWebsiteUrl, setPendingWebsiteUrl] = useState<string>("");
   const [configureOpen, setConfigureOpen] = useState(false);
+  // NEW: profile fields
+  const [jobRole, setJobRole] = useState("");
+  const [teamSize, setTeamSize] = useState("");
+  const [codeSkill, setCodeSkill] = useState("some");
+  const [technicality, setTechnicality] = useState(3);
   const navigate = useNavigate();
   const { user } = useAuth();
 
@@ -75,7 +80,25 @@ const Onboarding = () => {
     if (type === "dev_team") {
       setStep("dev_team_choice");
     } else {
+      setStep("profile");
+    }
+  };
+
+  const saveProfileAndContinue = async () => {
+    if (!user) return;
+    try {
+      await supabase
+        .from("profiles")
+        .update({
+          job_role: jobRole.trim() || null,
+          team_size: teamSize || null,
+          code_skill: codeSkill,
+          technicality_level: technicality,
+        } as any)
+        .eq("user_id", user.id);
       setStep("input");
+    } catch (e: any) {
+      toast.error(e.message || "Couldn't save profile");
     }
   };
 
