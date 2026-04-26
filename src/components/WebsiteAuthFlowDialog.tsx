@@ -461,6 +461,71 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                 </div>
               </div>
 
+              {/* Login type — handles PIN / 2FA scenarios */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">
+                  Login type
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { val: "password" as const, label: "Password only", desc: "Just username + password" },
+                    { val: "password_pin" as const, label: "Password + PIN", desc: "Asks for a PIN after login" },
+                    { val: "twofa" as const, label: "2FA code", desc: "TOTP / SMS / authenticator app" },
+                  ].map(t => (
+                    <button
+                      key={t.val}
+                      type="button"
+                      onClick={() => setLoginType(t.val)}
+                      className={`p-2.5 rounded-md border text-left transition-colors ${
+                        loginType === t.val ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/40"
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-foreground">{t.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{t.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                {loginType !== "password" && (
+                  <div className="mt-2">
+                    <Input
+                      value={pinOr2fa}
+                      onChange={e => setPinOr2fa(e.target.value)}
+                      placeholder={loginType === "password_pin" ? "PIN (4–8 digits)" : "Recovery / backup code, or seed for TOTP"}
+                      className="bg-secondary border-border text-foreground text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                      {loginType === "password_pin"
+                        ? "If your test account has a numeric PIN after the password screen, paste it here. Bond will type it when prompted."
+                        : "Bond can use a backup code or TOTP seed to handle 2FA on the test account. If you'd rather approve in real time, leave blank — Bond will pause and ping you."}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Non-invasive toggle */}
+              <button
+                type="button"
+                onClick={() => setNonInvasiveOnly(v => !v)}
+                className={`w-full text-left p-3 rounded-lg border transition-all flex items-start gap-3 ${
+                  nonInvasiveOnly ? "border-primary bg-primary/5" : "border-border bg-secondary/30 hover:border-primary/40"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                  nonInvasiveOnly ? "bg-primary border-primary" : "border-border bg-background"
+                }`}>
+                  {nonInvasiveOnly && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                    Non-invasive only — just look around, don't change anything
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                    Bond will read pages, hover, and open menus to understand the site, but it will <span className="font-semibold text-foreground/90">never click buttons that modify state</span> (no submit, no save, no delete). Recommended when you can't isolate a test account.
+                  </p>
+                </div>
+              </button>
+
               {/* Explicit permission grant */}
               <button
                 type="button"
