@@ -178,9 +178,12 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         access_scope: accessScope,
         login_url: loginUrl || null,
         safe_mode: safeMode,
-        allow_form_submission: allowForms,
-        block_destructive: blockDestructive,
-        allow_test_actions: true,
+        allow_form_submission: allowForms && !nonInvasiveOnly,
+        block_destructive: blockDestructive || nonInvasiveOnly,
+        allow_test_actions: !nonInvasiveOnly,
+        non_invasive_only: nonInvasiveOnly,
+        login_type: requiresLogin ? loginType : "password",
+        pin_or_2fa: requiresLogin && loginType !== "password" ? (pinOr2fa || null) : null,
         test_username: requiresLogin ? (testUsername || null) : null,
         test_password: requiresLogin ? (testPassword || null) : null,
         permission_granted: requiresLogin ? permissionGranted : false,
@@ -189,6 +192,14 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
           ? JSON.stringify({ local_copy_url: localCopyUrl.trim() })
           : null,
       } as any, { onConflict: "website_id" });
+
+      // Persist GitHub repo URL on the website row (so it's available everywhere)
+      if (githubRepoUrl.trim()) {
+        await supabase
+          .from("websites" as any)
+          .update({ github_repo_url: githubRepoUrl.trim() } as any)
+          .eq("id", websiteId);
+      }
 
       await supabase.from("scan_preferences" as any).upsert({
         user_id: user.id,
