@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { FileText, Wrench, BookOpen, MessageSquareMore, Briefcase } from "lucide-react";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 export type FixLevel = "quick" | "standard" | "deep" | "custom";
 
@@ -11,6 +12,7 @@ export interface FixIntent {
   level: FixLevel;
   custom?: string;
   role?: string;
+  technicality?: number;       // 1..5
 }
 
 interface Props {
@@ -60,17 +62,20 @@ export default function FixIntentDialog({ open, onOpenChange, onConfirm, title, 
   const [level, setLevel] = useState<FixLevel>("standard");
   const [custom, setCustom] = useState("");
   const [role, setRole] = useState("");
+  const [technicality, setTechnicality] = useState<number>(3);
 
   const submit = () => {
     onConfirm({
       level,
       custom: level === "custom" ? custom.trim() : undefined,
       role: role.trim() || undefined,
+      technicality,
     });
     onOpenChange(false);
     setCustom("");
     setRole("");
     setLevel("standard");
+    setTechnicality(3);
   };
 
   return (
@@ -140,6 +145,14 @@ export default function FixIntentDialog({ open, onOpenChange, onConfirm, title, 
             Tell us the role and we'll tailor the language and depth. Leave blank for a general-purpose doc that works for everyone.
           </p>
         </div>
+
+        <TechnicalityMeter
+          value={technicality}
+          onChange={setTechnicality}
+          label="How technical should it be?"
+          hint="Some teammates need 'plain English'; others want real code. Drag to taste."
+          className="mt-3"
+        />
 
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="border-border text-foreground hover:bg-secondary">

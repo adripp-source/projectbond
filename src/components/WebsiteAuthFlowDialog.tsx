@@ -11,6 +11,8 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
+import GithubRepoInput from "@/components/GithubRepoInput";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 interface Props {
   open: boolean;
@@ -85,9 +87,15 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
   const [permissionGranted, setPermissionGranted] = useState(false);
   const [hasLocalCopy, setHasLocalCopy] = useState(false);
   const [localCopyUrl, setLocalCopyUrl] = useState("");
+  const [githubRepoUrl, setGithubRepoUrl] = useState("");
+  const [githubIsPublic, setGithubIsPublic] = useState(true);
+  const [nonInvasiveOnly, setNonInvasiveOnly] = useState(true);
+  const [loginType, setLoginType] = useState<"password" | "password_pin" | "twofa">("password");
+  const [pinOr2fa, setPinOr2fa] = useState("");
   const [focusAreas, setFocusAreas] = useState<string[]>([]);
   const [goals, setGoals] = useState<string[]>([]);
   const [skillLevel, setSkillLevel] = useState("beginner");
+  const [technicality, setTechnicality] = useState<number>(3);
   const [saving, setSaving] = useState(false);
 
   // Pre-fill an intelligent guess for the login URL from the site URL
@@ -120,6 +128,9 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         setTestUsername(c.test_username || "");
         setTestPassword(c.test_password || "");
         setPermissionGranted(c.permission_granted ?? false);
+        setNonInvasiveOnly(c.non_invasive_only ?? true);
+        setLoginType((c.login_type as any) || "password");
+        setPinOr2fa(c.pin_or_2fa || "");
         // Local/staging copy is stored inside the free-form `notes` field as JSON
         try {
           const parsed = c.notes ? JSON.parse(c.notes) : null;
@@ -128,6 +139,15 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
             setLocalCopyUrl(parsed.local_copy_url);
           }
         } catch { /* notes was plain text — ignore */ }
+      }
+      // Per-website GitHub repo lives on the websites row
+      const { data: site } = await supabase
+        .from("websites" as any)
+        .select("github_repo_url")
+        .eq("id", websiteId)
+        .maybeSingle();
+      if (site && (site as any).github_repo_url) {
+        setGithubRepoUrl((site as any).github_repo_url);
       }
       const { data: pref } = await supabase
         .from("scan_preferences" as any)
@@ -160,9 +180,12 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         access_scope: accessScope,
         login_url: loginUrl || null,
         safe_mode: safeMode,
-        allow_form_submission: allowForms,
-        block_destructive: blockDestructive,
-        allow_test_actions: true,
+        allow_form_submission: allowForms && !nonInvasiveOnly,
+        block_destructive: blockDestructive || nonInvasiveOnly,
+        allow_test_actions: !nonInvasiveOnly,
+        non_invasive_only: nonInvasiveOnly,
+        login_type: requiresLogin ? loginType : "password",
+        pin_or_2fa: requiresLogin && loginType !== "password" ? (pinOr2fa || null) : null,
         test_username: requiresLogin ? (testUsername || null) : null,
         test_password: requiresLogin ? (testPassword || null) : null,
         permission_granted: requiresLogin ? permissionGranted : false,
@@ -171,6 +194,14 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
           ? JSON.stringify({ local_copy_url: localCopyUrl.trim() })
           : null,
       } as any, { onConflict: "website_id" });
+
+      // Persist GitHub repo URL on the website row (so it's available everywhere)
+      if (githubRepoUrl.trim()) {
+        await supabase
+          .from("websites" as any)
+          .update({ github_repo_url: githubRepoUrl.trim() } as any)
+          .eq("id", websiteId);
+      }
 
       await supabase.from("scan_preferences" as any).upsert({
         user_id: user.id,
@@ -432,6 +463,71 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                 </div>
               </div>
 
+              {/* Login type — handles PIN / 2FA scenarios */}
+              <div>
+                <label className="text-xs font-semibold text-muted-foreground mb-1.5 block uppercase tracking-wider">
+                  Login type
+                </label>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { val: "password" as const, label: "Password only", desc: "Just username + password" },
+                    { val: "password_pin" as const, label: "Password + PIN", desc: "Asks for a PIN after login" },
+                    { val: "twofa" as const, label: "2FA code", desc: "TOTP / SMS / authenticator app" },
+                  ].map(t => (
+                    <button
+                      key={t.val}
+                      type="button"
+                      onClick={() => setLoginType(t.val)}
+                      className={`p-2.5 rounded-md border text-left transition-colors ${
+                        loginType === t.val ? "border-primary bg-primary/10" : "border-border bg-secondary/30 hover:border-primary/40"
+                      }`}
+                    >
+                      <p className="text-xs font-medium text-foreground">{t.label}</p>
+                      <p className="text-[10px] text-muted-foreground">{t.desc}</p>
+                    </button>
+                  ))}
+                </div>
+                {loginType !== "password" && (
+                  <div className="mt-2">
+                    <Input
+                      value={pinOr2fa}
+                      onChange={e => setPinOr2fa(e.target.value)}
+                      placeholder={loginType === "password_pin" ? "PIN (4–8 digits)" : "Recovery / backup code, or seed for TOTP"}
+                      className="bg-secondary border-border text-foreground text-xs font-mono"
+                    />
+                    <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+                      {loginType === "password_pin"
+                        ? "If your test account has a numeric PIN after the password screen, paste it here. Bond will type it when prompted."
+                        : "Bond can use a backup code or TOTP seed to handle 2FA on the test account. If you'd rather approve in real time, leave blank — Bond will pause and ping you."}
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Non-invasive toggle */}
+              <button
+                type="button"
+                onClick={() => setNonInvasiveOnly(v => !v)}
+                className={`w-full text-left p-3 rounded-lg border transition-all flex items-start gap-3 ${
+                  nonInvasiveOnly ? "border-primary bg-primary/5" : "border-border bg-secondary/30 hover:border-primary/40"
+                }`}
+              >
+                <div className={`w-5 h-5 rounded border-2 flex-shrink-0 mt-0.5 flex items-center justify-center transition-colors ${
+                  nonInvasiveOnly ? "bg-primary border-primary" : "border-border bg-background"
+                }`}>
+                  {nonInvasiveOnly && <CheckCircle2 className="w-4 h-4 text-primary-foreground" />}
+                </div>
+                <div className="flex-1">
+                  <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                    <ShieldCheck className="w-3.5 h-3.5 text-primary" />
+                    Non-invasive only — just look around, don't change anything
+                  </p>
+                  <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
+                    Bond will read pages, hover, and open menus to understand the site, but it will <span className="font-semibold text-foreground/90">never click buttons that modify state</span> (no submit, no save, no delete). Recommended when you can't isolate a test account.
+                  </p>
+                </div>
+              </button>
+
               {/* Explicit permission grant */}
               <button
                 type="button"
@@ -532,6 +628,15 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                   <li>Break user progress in active sessions</li>
                 </ul>
               </div>
+
+              {/* GitHub repo (per-website) */}
+              <GithubRepoInput
+                value={githubRepoUrl}
+                onChange={setGithubRepoUrl}
+                isPublic={githubIsPublic}
+                onIsPublicChange={setGithubIsPublic}
+              />
+
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep("auth_details")} className="border-border">Back</Button>
                 <Button onClick={() => setStep("preferences")} className="flex-1 bg-gradient-primary text-primary-foreground">
@@ -601,6 +706,12 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
                   ))}
                 </div>
               </div>
+              <TechnicalityMeter
+                value={technicality}
+                onChange={setTechnicality}
+                label="Default technicality for this site"
+                hint="We'll use this whenever Bond writes anything for this site. You can override it per generation."
+              />
               <div className="flex gap-2">
                 <Button variant="outline" onClick={() => setStep(requiresLogin ? "safety" : "login_check")} className="border-border">Back</Button>
                 <Button onClick={handleSave} disabled={saving} className="flex-1 bg-gradient-primary text-primary-foreground">
