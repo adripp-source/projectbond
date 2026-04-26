@@ -197,16 +197,23 @@ const WebsiteAnalysis = () => {
         </div>
       </motion.div>
 
+      <SuggestedWebsites section="analysis" onAdopted={(w) => setWebsites(prev => [...prev, { id: w.id, url: w.url, name: w.name }])} />
+
       {/* Add website */}
       <div className="bg-card border border-border rounded-lg p-4 mb-6 shadow-card">
         <h3 className="text-sm font-semibold text-foreground mb-3">Monitored Websites</h3>
         <div className="flex gap-2 mb-3">
-          <Input placeholder="https://yourwebsite.com" value={newUrl} onChange={(e) => setNewUrl(e.target.value)} className="bg-secondary border-border text-foreground"
+          <Input placeholder="https://yourwebsite.com" value={newUrl} onChange={(e) => { setNewUrl(e.target.value); setUrlError(null); }} className="bg-secondary border-border text-foreground"
             onKeyDown={e => e.key === "Enter" && addWebsite()} />
           <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" className="bg-gradient-primary text-primary-foreground">
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
         </div>
+        {urlError && (
+          <div className="mb-3">
+            <SmartUrlError attemptedUrl={urlError} onPick={(u) => { setNewUrl(u); setUrlError(null); }} />
+          </div>
+        )}
         {websites.length > 0 && (
           <div className="space-y-1">
             {websites.map(w => (
