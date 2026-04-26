@@ -127,7 +127,7 @@ const MediaFootprint = () => {
   }
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-6 lg:p-10 max-w-[1400px] mx-auto w-full">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">

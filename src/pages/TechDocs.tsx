@@ -2,8 +2,11 @@ import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import {
   BookOpen, Sparkles, Loader2, Globe, Plus, FileCode, Layers,
-  ListChecks, Lock, AlertTriangle, ChevronRight, Wand2, Trash2, ListPlus,
+  ListChecks, Lock, AlertTriangle, ChevronRight, Wand2, Trash2, ListPlus, Download,
 } from "lucide-react";
+import { useRef } from "react";
+import jsPDF from "jspdf";
+import html2canvas from "html2canvas";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -50,6 +53,44 @@ const TechDocs = () => {
   const [urlError, setUrlError] = useState<string | null>(null);
   const [intentOpen, setIntentOpen] = useState(false);
   const [pendingMode, setPendingMode] = useState<"docs" | "features" | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const docsRef = useRef<HTMLDivElement>(null);
+
+  const exportDocsPdf = async () => {
+    if (!docsRef.current || !docs) return;
+    setExporting(true);
+    try {
+      const canvas = await html2canvas(docsRef.current, {
+        scale: 2,
+        useCORS: true,
+        backgroundColor: "#0a0a0a",
+        logging: false,
+      });
+      const pdfWidth = 210;
+      const pdfHeight = 297;
+      const imgWidth = pdfWidth;
+      const imgHeight = (canvas.height * pdfWidth) / canvas.width;
+      const pdf = new jsPDF("p", "mm", "a4");
+      const imgData = canvas.toDataURL("image/png");
+      let position = 0;
+      let heightLeft = imgHeight;
+      pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+      heightLeft -= pdfHeight;
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgWidth, imgHeight);
+        heightLeft -= pdfHeight;
+      }
+      const safeName = (activeUrl || "site").replace(/^https?:\/\//, "").replace(/[^a-z0-9]/gi, "-");
+      pdf.save(`onboarding-${safeName}.pdf`);
+      toast.success("PDF downloaded");
+    } catch (e: any) {
+      toast.error(e.message || "PDF export failed");
+    } finally {
+      setExporting(false);
+    }
+  };
 
   // Load websites
   useEffect(() => {
@@ -120,7 +161,7 @@ const TechDocs = () => {
   };
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-6 lg:p-10 max-w-[1400px] mx-auto w-full">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
         <div className="flex items-center gap-3 mb-1">
           <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
@@ -178,6 +219,12 @@ const TechDocs = () => {
           <ListPlus className="w-4 h-4 mr-1.5" />
           Generate feature map
         </Button>
+        {docs && tab === "docs" && (
+          <Button onClick={exportDocsPdf} disabled={exporting} variant="outline" className="border-border text-foreground hover:bg-secondary">
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Download className="w-4 h-4 mr-1.5" />}
+            Export PDF
+          </Button>
+        )}
         {generating && (
           <div className="flex items-center gap-2 ml-2">
             <div className="w-32 h-1.5 bg-secondary rounded-full overflow-hidden">
@@ -200,7 +247,7 @@ const TechDocs = () => {
             <EmptyState icon={FileCode} title="No documentation yet" subtitle="Pick a website above and click Generate onboarding doc." />
           )}
           {docs && (
-            <div className="space-y-4">
+            <div ref={docsRef} className="space-y-4 bg-background p-2">
               <Section icon={Sparkles} title="Project Overview">
                 <p className="text-sm text-foreground leading-relaxed">{docs.project_overview}</p>
               </Section>
