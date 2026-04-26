@@ -116,7 +116,7 @@ export default function ReadableOutcome({ raw, level }: Props) {
       </button>
 
       {showRaw && (
-        <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed bg-secondary/40 p-3 rounded-md border border-border max-h-60 overflow-y-auto">
+        <pre className="text-[10px] text-muted-foreground whitespace-pre-wrap font-mono leading-relaxed bg-secondary/40 p-3 rounded-md border border-border">
           {raw}
         </pre>
       )}

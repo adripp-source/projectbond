@@ -81,7 +81,7 @@ const AIChatBar = ({ context, placeholder, suggestedQuestions, extraContext }: A
       <AnimatePresence>
         {open && (
           <motion.div initial={{ opacity: 0, y: 20, scale: 0.95 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 20, scale: 0.95 }}
-            className="fixed bottom-24 right-6 z-50 w-96 h-[480px] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
+            className="fixed bottom-24 right-6 z-50 w-96 h-[min(640px,calc(100vh-7rem))] bg-card border border-border rounded-xl shadow-2xl flex flex-col overflow-hidden">
             <div className="flex items-center gap-2 px-4 py-3 border-b border-border bg-secondary/50">
               <Sparkles className="w-4 h-4 text-primary" />
               <span className="text-sm font-semibold text-foreground">{CONTEXT_LABELS[context] || "AI Assistant"}</span>
