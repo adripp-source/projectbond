@@ -219,6 +219,12 @@ const TechDocs = () => {
           <ListPlus className="w-4 h-4 mr-1.5" />
           Generate feature map
         </Button>
+        {docs && tab === "docs" && (
+          <Button onClick={exportDocsPdf} disabled={exporting} variant="outline" className="border-border text-foreground hover:bg-secondary">
+            {exporting ? <Loader2 className="w-4 h-4 animate-spin mr-1.5" /> : <Download className="w-4 h-4 mr-1.5" />}
+            Export PDF
+          </Button>
+        )}
         {generating && (
           <div className="flex items-center gap-2 ml-2">
             <div className="w-32 h-1.5 bg-secondary rounded-full overflow-hidden">
