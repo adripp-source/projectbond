@@ -371,8 +371,12 @@ export type Database = {
           id: string
           login_url: string | null
           notes: string | null
+          permission_granted: boolean
+          permission_granted_at: string | null
           requires_login: boolean | null
           safe_mode: boolean | null
+          test_password: string | null
+          test_username: string | null
           updated_at: string
           user_id: string
           website_id: string
@@ -387,8 +391,12 @@ export type Database = {
           id?: string
           login_url?: string | null
           notes?: string | null
+          permission_granted?: boolean
+          permission_granted_at?: string | null
           requires_login?: boolean | null
           safe_mode?: boolean | null
+          test_password?: string | null
+          test_username?: string | null
           updated_at?: string
           user_id: string
           website_id: string
@@ -403,8 +411,12 @@ export type Database = {
           id?: string
           login_url?: string | null
           notes?: string | null
+          permission_granted?: boolean
+          permission_granted_at?: string | null
           requires_login?: boolean | null
           safe_mode?: boolean | null
+          test_password?: string | null
+          test_username?: string | null
           updated_at?: string
           user_id?: string
           website_id?: string
