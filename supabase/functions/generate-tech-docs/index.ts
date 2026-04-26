@@ -127,6 +127,61 @@ serve(async (req) => {
                 },
               },
               architecture: { type: "string", description: "How the system likely fits together (frontend, backend, services)." },
+              architecture_diagram: {
+                type: "array",
+                description: "Component nodes for an architecture overview diagram.",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    role: { type: "string", description: "What this component does (1 sentence)." },
+                    layer: { type: "string", enum: ["frontend", "backend", "data", "integration", "infra"] },
+                    connects_to: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["name", "role", "layer", "connects_to"],
+                  additionalProperties: false,
+                },
+              },
+              database_schema_guess: {
+                type: "array",
+                description: "Likely tables/collections with key fields (best-guess from visible signals).",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    purpose: { type: "string" },
+                    key_fields: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["name", "purpose", "key_fields"],
+                  additionalProperties: false,
+                },
+              },
+              user_workflows: {
+                type: "array",
+                description: "Common end-to-end user journeys on this site.",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    steps: { type: "array", items: { type: "string" } },
+                  },
+                  required: ["name", "steps"],
+                  additionalProperties: false,
+                },
+              },
+              integrations: {
+                type: "array",
+                description: "Detected third-party integrations (analytics, payments, auth, CRM, etc.).",
+                items: {
+                  type: "object",
+                  properties: {
+                    name: { type: "string" },
+                    purpose: { type: "string" },
+                  },
+                  required: ["name", "purpose"],
+                  additionalProperties: false,
+                },
+              },
               key_pages: {
                 type: "array",
                 items: {
@@ -158,7 +213,7 @@ serve(async (req) => {
                 items: { type: "string" },
               },
             },
-            required: ["project_overview", "tech_stack_guess", "architecture", "key_pages", "local_setup", "env_vars_likely", "gotchas", "first_week_checklist"],
+            required: ["project_overview", "tech_stack_guess", "architecture", "architecture_diagram", "database_schema_guess", "user_workflows", "integrations", "key_pages", "local_setup", "env_vars_likely", "gotchas", "first_week_checklist"],
             additionalProperties: false,
           },
         },
