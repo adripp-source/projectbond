@@ -32,7 +32,20 @@ const userTypes = [
   },
 ];
 
-type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "input" | "configure" | "analyzing";
+type Step = "welcome" | "user_type" | "dev_team_choice" | "create_workspace" | "join_workspace" | "profile" | "input" | "configure" | "analyzing";
+
+const TEAM_SIZES = [
+  { v: "solo", label: "Just me" },
+  { v: "small", label: "2–10 people" },
+  { v: "mid", label: "11–50" },
+  { v: "large", label: "50+" },
+];
+
+const CODE_SKILLS = [
+  { v: "none", label: "I don't code", desc: "Plain English only" },
+  { v: "some", label: "A little", desc: "I can read code" },
+  { v: "lots", label: "Confident", desc: "Comfortable shipping code" },
+];
 
 const Onboarding = () => {
   const [url, setUrl] = useState("");
