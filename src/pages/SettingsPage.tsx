@@ -90,12 +90,17 @@ const SettingsPage = () => {
     setEmail(user.email || "");
 
     Promise.all([
-      supabase.from("profiles").select("display_name, user_type").eq("user_id", user.id).maybeSingle(),
+      supabase.from("profiles").select("display_name, user_type, job_role, team_size, code_skill, technicality_level").eq("user_id", user.id).maybeSingle(),
       supabase.auth.mfa.listFactors(),
     ]).then(([profileRes, mfaRes]) => {
       if (profileRes.data) {
-        setDisplayName((profileRes.data as any).display_name || "");
-        setUserType((profileRes.data as any).user_type || "");
+        const p = profileRes.data as any;
+        setDisplayName(p.display_name || "");
+        setUserType(p.user_type || "");
+        setJobRole(p.job_role || "");
+        setTeamSize(p.team_size || "");
+        setCodeSkill(p.code_skill || "some");
+        setTechnicality(p.technicality_level ?? 3);
       }
       if (mfaRes.data) {
         const verified = mfaRes.data.totp.filter((f: any) => f.status === "verified");
@@ -112,7 +117,14 @@ const SettingsPage = () => {
     try {
       await supabase
         .from("profiles")
-        .update({ display_name: displayName.trim(), user_type: userType } as any)
+        .update({
+          display_name: displayName.trim(),
+          user_type: userType,
+          job_role: jobRole.trim() || null,
+          team_size: teamSize || null,
+          code_skill: codeSkill,
+          technicality_level: technicality,
+        } as any)
         .eq("user_id", user.id);
       toast.success("Settings saved!");
     } catch (e: any) {
