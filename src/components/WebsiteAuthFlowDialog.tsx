@@ -167,6 +167,9 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         test_password: requiresLogin ? (testPassword || null) : null,
         permission_granted: requiresLogin ? permissionGranted : false,
         permission_granted_at: requiresLogin && permissionGranted ? new Date().toISOString() : null,
+        notes: hasLocalCopy && localCopyUrl
+          ? JSON.stringify({ local_copy_url: localCopyUrl.trim() })
+          : null,
       } as any, { onConflict: "website_id" });
 
       await supabase.from("scan_preferences" as any).upsert({
