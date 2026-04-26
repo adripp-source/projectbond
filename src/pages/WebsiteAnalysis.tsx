@@ -386,11 +386,16 @@ const WebsiteAnalysis = () => {
       )}
 
       {qaIssues.length === 0 && securityIssues.length === 0 && !psScores && (
-        <div className="bg-card border border-border rounded-lg p-8 text-center shadow-card">
-          <Globe className="w-8 h-8 text-muted-foreground mx-auto mb-3" />
-          <p className="text-sm text-muted-foreground mb-1">No scan results yet</p>
-          <p className="text-xs text-muted-foreground">Add a website and run a scan to see AI + PageSpeed analysis.</p>
-        </div>
+        <EmptyState
+          icon={Globe}
+          title={websites.length === 0 ? "Add your first website" : "Run your first scan"}
+          description={
+            websites.length === 0
+              ? "Drop in a URL above to start tracking AI QA, PageSpeed, and security in one place."
+              : "Click 'Run Scan' to generate AI QA findings, performance metrics, and security checks."
+          }
+          action={websites.length > 0 ? { label: scanning ? "Scanning…" : "Run Scan", onClick: runScan } : undefined}
+        />
       )}
 
       {/* Auth Flow Dialog */}
