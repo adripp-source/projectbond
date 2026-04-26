@@ -151,10 +151,14 @@ export type Database = {
       profiles: {
         Row: {
           avatar_url: string | null
+          code_skill: string | null
           created_at: string
           display_name: string | null
           id: string
+          job_role: string | null
           onboarding_completed: boolean | null
+          team_size: string | null
+          technicality_level: number | null
           updated_at: string
           user_id: string
           user_type: string | null
@@ -162,10 +166,14 @@ export type Database = {
         }
         Insert: {
           avatar_url?: string | null
+          code_skill?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          job_role?: string | null
           onboarding_completed?: boolean | null
+          team_size?: string | null
+          technicality_level?: number | null
           updated_at?: string
           user_id: string
           user_type?: string | null
@@ -173,10 +181,14 @@ export type Database = {
         }
         Update: {
           avatar_url?: string | null
+          code_skill?: string | null
           created_at?: string
           display_name?: string | null
           id?: string
+          job_role?: string | null
           onboarding_completed?: boolean | null
+          team_size?: string | null
+          technicality_level?: number | null
           updated_at?: string
           user_id?: string
           user_type?: string | null
@@ -369,10 +381,13 @@ export type Database = {
           block_destructive: boolean | null
           created_at: string
           id: string
+          login_type: string | null
           login_url: string | null
+          non_invasive_only: boolean
           notes: string | null
           permission_granted: boolean
           permission_granted_at: string | null
+          pin_or_2fa: string | null
           requires_login: boolean | null
           safe_mode: boolean | null
           test_password: string | null
@@ -389,10 +404,13 @@ export type Database = {
           block_destructive?: boolean | null
           created_at?: string
           id?: string
+          login_type?: string | null
           login_url?: string | null
+          non_invasive_only?: boolean
           notes?: string | null
           permission_granted?: boolean
           permission_granted_at?: string | null
+          pin_or_2fa?: string | null
           requires_login?: boolean | null
           safe_mode?: boolean | null
           test_password?: string | null
@@ -409,10 +427,13 @@ export type Database = {
           block_destructive?: boolean | null
           created_at?: string
           id?: string
+          login_type?: string | null
           login_url?: string | null
+          non_invasive_only?: boolean
           notes?: string | null
           permission_granted?: boolean
           permission_granted_at?: string | null
+          pin_or_2fa?: string | null
           requires_login?: boolean | null
           safe_mode?: boolean | null
           test_password?: string | null
@@ -434,6 +455,7 @@ export type Database = {
       websites: {
         Row: {
           created_at: string
+          github_repo_url: string | null
           id: string
           name: string | null
           section: string
@@ -443,6 +465,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          github_repo_url?: string | null
           id?: string
           name?: string | null
           section?: string
@@ -452,6 +475,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          github_repo_url?: string | null
           id?: string
           name?: string | null
           section?: string
