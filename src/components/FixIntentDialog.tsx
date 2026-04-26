@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Input } from "@/components/ui/input";
 import { FileText, Wrench, BookOpen, MessageSquareMore, Briefcase } from "lucide-react";
+import TechnicalityMeter from "@/components/TechnicalityMeter";
 
 export type FixLevel = "quick" | "standard" | "deep" | "custom";
 
@@ -11,6 +12,7 @@ export interface FixIntent {
   level: FixLevel;
   custom?: string;
   role?: string;
+  technicality?: number;       // 1..5
 }
 
 interface Props {
