@@ -114,16 +114,32 @@ export default function FixIntentDialog({ open, onOpenChange, onConfirm, title, 
 
         {level === "custom" && (
           <div className="mt-2">
-            <label className="text-xs font-medium text-foreground mb-1.5 block">Describe what "fixed" means</label>
+            <label className="text-xs font-medium text-foreground mb-1.5 block">Describe what you want</label>
             <Textarea
               value={custom}
               onChange={(e) => setCustom(e.target.value)}
-              placeholder="e.g. 'Make this section feel more like Linear's pricing page — smaller font, more whitespace, no gradient.'"
+              placeholder="e.g. 'Write it for a brand-new marketing hire — focus on what each page does, skip technical setup.'"
               className="bg-secondary border-border text-foreground text-sm min-h-[90px]"
               autoFocus
             />
           </div>
         )}
+
+        <div className="mt-3 p-3 rounded-lg border border-border bg-secondary/30">
+          <label className="text-xs font-medium text-foreground mb-1.5 flex items-center gap-1.5">
+            <Briefcase className="w-3.5 h-3.5 text-primary" />
+            Who is this for? <span className="text-muted-foreground font-normal">(optional)</span>
+          </label>
+          <Input
+            value={role}
+            onChange={(e) => setRole(e.target.value)}
+            placeholder="e.g. New marketing hire, junior developer, customer support lead, anyone…"
+            className="bg-card border-border text-foreground text-sm"
+          />
+          <p className="text-[10px] text-muted-foreground mt-1.5 leading-relaxed">
+            Tell us the role and we'll tailor the language and depth. Leave blank for a general-purpose doc that works for everyone.
+          </p>
+        </div>
 
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="outline" size="sm" onClick={() => onOpenChange(false)} className="border-border text-foreground hover:bg-secondary">
