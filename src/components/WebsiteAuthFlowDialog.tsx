@@ -120,6 +120,14 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         setTestUsername(c.test_username || "");
         setTestPassword(c.test_password || "");
         setPermissionGranted(c.permission_granted ?? false);
+        // Local/staging copy is stored inside the free-form `notes` field as JSON
+        try {
+          const parsed = c.notes ? JSON.parse(c.notes) : null;
+          if (parsed?.local_copy_url) {
+            setHasLocalCopy(true);
+            setLocalCopyUrl(parsed.local_copy_url);
+          }
+        } catch { /* notes was plain text — ignore */ }
       }
       const { data: pref } = await supabase
         .from("scan_preferences" as any)
