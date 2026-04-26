@@ -261,6 +261,76 @@ const SettingsPage = () => {
           </div>
         </div>
 
+        {/* Personal Preferences — drives doc / fix tone everywhere */}
+        <div className="bg-card border border-border rounded-lg p-6 shadow-card">
+          <div className="flex items-center gap-2 mb-4">
+            <Briefcase className="w-4 h-4 text-muted-foreground" />
+            <h3 className="text-sm font-semibold text-foreground">Personal Preferences</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-4">
+            Drives the language & depth of every doc, fix, and explanation. You can override per-website or per-generation.
+          </p>
+
+          <div className="grid grid-cols-2 gap-4 max-w-2xl mb-4">
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Your role</label>
+              <Input
+                value={jobRole}
+                onChange={(e) => setJobRole(e.target.value)}
+                placeholder="e.g. Marketing Lead, Founder, Junior Dev"
+                className="bg-secondary border-border text-foreground"
+              />
+            </div>
+            <div>
+              <label className="text-xs text-muted-foreground mb-1 block">Team size</label>
+              <div className="flex gap-1.5 flex-wrap">
+                {TEAM_SIZES.map(t => (
+                  <button
+                    key={t.v}
+                    type="button"
+                    onClick={() => setTeamSize(t.v)}
+                    className={`px-2.5 py-1.5 rounded-md border text-xs transition-all ${
+                      teamSize === t.v
+                        ? "border-primary bg-primary/10 text-foreground"
+                        : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-4 max-w-2xl">
+            <label className="text-xs text-muted-foreground mb-1.5 block">Comfort with code</label>
+            <div className="flex gap-1.5">
+              {CODE_SKILLS.map(s => (
+                <button
+                  key={s.v}
+                  type="button"
+                  onClick={() => setCodeSkill(s.v)}
+                  className={`px-3 py-1.5 rounded-md border text-xs transition-all ${
+                    codeSkill === s.v
+                      ? "border-primary bg-primary/10 text-foreground"
+                      : "border-border bg-card text-muted-foreground hover:border-primary/50"
+                  }`}
+                >
+                  {s.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="max-w-2xl">
+            <TechnicalityMeter
+              value={technicality}
+              onChange={setTechnicality}
+              hint="This becomes the default for every new doc, fix, and explanation."
+            />
+          </div>
+        </div>
+
         {/* 2FA / MFA */}
         <div className="bg-card border border-border rounded-lg p-6 shadow-card">
           <div className="flex items-center gap-2 mb-4">
