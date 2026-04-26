@@ -114,6 +114,9 @@ export default function WebsiteAuthFlowDialog({ open, onOpenChange, websiteId, w
         setSafeMode(c.safe_mode ?? true);
         setAllowForms(c.allow_form_submission ?? false);
         setBlockDestructive(c.block_destructive ?? true);
+        setTestUsername(c.test_username || "");
+        setTestPassword(c.test_password || "");
+        setPermissionGranted(c.permission_granted ?? false);
       }
       const { data: pref } = await supabase
         .from("scan_preferences" as any)
