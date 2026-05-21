@@ -144,7 +144,7 @@ const WebsiteAnalysis = () => {
     if (scanCount >= 15) { toast.error("Daily scan limit reached (15/15)"); return; }
     setScanning(true);
     try {
-      // Run AI analysis and PageSpeed in parallel
+      // Run analysis and PageSpeed in parallel
       const [aiResult] = await Promise.all([
         api.analyzeWebsite(urlToScan),
         fetchPageSpeed(urlToScan),
@@ -209,7 +209,7 @@ const WebsiteAnalysis = () => {
             </div>
             <div>
               <h1 className="text-2xl font-bold text-foreground tracking-tight">Website Analysis</h1>
-              <p className="text-sm text-muted-foreground">AI QA + Google PageSpeed + Security</p>
+              <p className="text-sm text-muted-foreground">Quality Assurance + Google PageSpeed + Security</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -314,10 +314,10 @@ const WebsiteAnalysis = () => {
         </motion.div>
       )}
 
-      {/* AI Scores */}
+      {/* QA & Security Scores */}
       {(healthScore !== null || securityScore !== null) && (
         <div className="grid grid-cols-2 gap-4 mb-6">
-          <ScoreCard label="AI QA Score" score={healthScore ?? 0} icon={Play} />
+          <ScoreCard label="QA Score" score={healthScore ?? 0} icon={Play} />
           <ScoreCard label="Security Score" score={securityScore ?? 0} icon={Shield} />
         </div>
       )}
@@ -344,7 +344,7 @@ const WebsiteAnalysis = () => {
         </div>
       )}
 
-      {/* Limited access warning */}
+      {/* Safe Testing Mode */}
       {websites.length > 0 && (
         <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 mb-6">
           <Eye className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
@@ -391,8 +391,8 @@ const WebsiteAnalysis = () => {
           title={websites.length === 0 ? "Add your first website" : "Run your first scan"}
           description={
             websites.length === 0
-              ? "Drop in a URL above to start tracking AI QA, PageSpeed, and security in one place."
-              : "Click 'Run Scan' to generate AI QA findings, performance metrics, and security checks."
+              ? "Drop in a URL above to start tracking QA, PageSpeed, and security in one place."
+              : "Click 'Run Scan' to generate QA findings, performance metrics, and security checks."
           }
           action={websites.length > 0 ? { label: scanning ? "Scanning…" : "Run Scan", onClick: runScan } : undefined}
         />
