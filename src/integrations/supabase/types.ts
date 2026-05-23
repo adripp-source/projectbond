@@ -68,6 +68,30 @@ export type Database = {
           },
         ]
       }
+      app_versions: {
+        Row: {
+          changelog: string | null
+          created_at: string
+          id: string
+          title: string
+          version: string
+        }
+        Insert: {
+          changelog?: string | null
+          created_at?: string
+          id?: string
+          title: string
+          version: string
+        }
+        Update: {
+          changelog?: string | null
+          created_at?: string
+          id?: string
+          title?: string
+          version?: string
+        }
+        Relationships: []
+      }
       branding: {
         Row: {
           company_name: string | null
@@ -206,58 +230,103 @@ export type Database = {
       }
       scan_issues: {
         Row: {
+          action_taken: string | null
+          actual_result: string | null
+          affected_urls: string[] | null
           category: string
+          console_evidence: Json | null
           created_at: string
           description: string
+          evidence_score: number
+          expected_result: string | null
           fix_code: string | null
           fix_content: string | null
           fix_dev: string | null
           fix_nocode: string | null
           fix_visual: string | null
+          http_status: number | null
           id: string
           impact: string | null
+          kind: string
           location: string | null
+          network_evidence: Json | null
           priority: string
+          reproduction_steps: Json | null
           scan_id: string
+          screenshot_url: string | null
+          source_engine: string
           status: string
+          taxonomy: string | null
+          theme_key: string | null
           title: string
           user_id: string
+          viewport: string | null
         }
         Insert: {
+          action_taken?: string | null
+          actual_result?: string | null
+          affected_urls?: string[] | null
           category?: string
+          console_evidence?: Json | null
           created_at?: string
           description: string
+          evidence_score?: number
+          expected_result?: string | null
           fix_code?: string | null
           fix_content?: string | null
           fix_dev?: string | null
           fix_nocode?: string | null
           fix_visual?: string | null
+          http_status?: number | null
           id?: string
           impact?: string | null
+          kind?: string
           location?: string | null
+          network_evidence?: Json | null
           priority?: string
+          reproduction_steps?: Json | null
           scan_id: string
+          screenshot_url?: string | null
+          source_engine?: string
           status?: string
+          taxonomy?: string | null
+          theme_key?: string | null
           title: string
           user_id: string
+          viewport?: string | null
         }
         Update: {
+          action_taken?: string | null
+          actual_result?: string | null
+          affected_urls?: string[] | null
           category?: string
+          console_evidence?: Json | null
           created_at?: string
           description?: string
+          evidence_score?: number
+          expected_result?: string | null
           fix_code?: string | null
           fix_content?: string | null
           fix_dev?: string | null
           fix_nocode?: string | null
           fix_visual?: string | null
+          http_status?: number | null
           id?: string
           impact?: string | null
+          kind?: string
           location?: string | null
+          network_evidence?: Json | null
           priority?: string
+          reproduction_steps?: Json | null
           scan_id?: string
+          screenshot_url?: string | null
+          source_engine?: string
           status?: string
+          taxonomy?: string | null
+          theme_key?: string | null
           title?: string
           user_id?: string
+          viewport?: string | null
         }
         Relationships: [
           {
@@ -268,6 +337,75 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      scan_jobs: {
+        Row: {
+          created_at: string
+          depth: string
+          error_message: string | null
+          exclusions: string | null
+          finished_at: string | null
+          focus_areas: string[]
+          forms_policy: string
+          id: string
+          outcome: string | null
+          requested_by: string
+          result_summary: Json | null
+          scan_id: string | null
+          scheduled_scan_id: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+          url: string
+          user_id: string
+          website_id: string | null
+          worker_token_hash: string | null
+        }
+        Insert: {
+          created_at?: string
+          depth?: string
+          error_message?: string | null
+          exclusions?: string | null
+          finished_at?: string | null
+          focus_areas?: string[]
+          forms_policy?: string
+          id?: string
+          outcome?: string | null
+          requested_by?: string
+          result_summary?: Json | null
+          scan_id?: string | null
+          scheduled_scan_id?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url: string
+          user_id: string
+          website_id?: string | null
+          worker_token_hash?: string | null
+        }
+        Update: {
+          created_at?: string
+          depth?: string
+          error_message?: string | null
+          exclusions?: string | null
+          finished_at?: string | null
+          focus_areas?: string[]
+          forms_policy?: string
+          id?: string
+          outcome?: string | null
+          requested_by?: string
+          result_summary?: Json | null
+          scan_id?: string | null
+          scheduled_scan_id?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+          url?: string
+          user_id?: string
+          website_id?: string | null
+          worker_token_hash?: string | null
+        }
+        Relationships: []
       }
       scan_preferences: {
         Row: {
@@ -317,6 +455,7 @@ export type Database = {
         Row: {
           ai_summary: string | null
           brand_analysis: Json | null
+          crawl_report: Json | null
           created_at: string
           health_score: number | null
           id: string
@@ -333,6 +472,7 @@ export type Database = {
         Insert: {
           ai_summary?: string | null
           brand_analysis?: Json | null
+          crawl_report?: Json | null
           created_at?: string
           health_score?: number | null
           id?: string
@@ -349,6 +489,7 @@ export type Database = {
         Update: {
           ai_summary?: string | null
           brand_analysis?: Json | null
+          crawl_report?: Json | null
           created_at?: string
           health_score?: number | null
           id?: string
@@ -368,6 +509,101 @@ export type Database = {
             columns: ["website_id"]
             isOneToOne: false
             referencedRelation: "websites"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      scheduled_scans: {
+        Row: {
+          alert_threshold: string
+          created_at: string
+          depth: string
+          exclusions: string | null
+          focus_areas: string[]
+          forms_policy: string
+          frequency: string
+          id: string
+          is_active: boolean
+          last_run_at: string | null
+          next_run_at: string
+          outcome: string | null
+          scan_type: string
+          scheduled_days: string[] | null
+          scheduled_time: string
+          timezone: string
+          updated_at: string
+          user_id: string
+          website_id: string
+        }
+        Insert: {
+          alert_threshold?: string
+          created_at?: string
+          depth?: string
+          exclusions?: string | null
+          focus_areas?: string[]
+          forms_policy?: string
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          next_run_at: string
+          outcome?: string | null
+          scan_type?: string
+          scheduled_days?: string[] | null
+          scheduled_time: string
+          timezone?: string
+          updated_at?: string
+          user_id: string
+          website_id: string
+        }
+        Update: {
+          alert_threshold?: string
+          created_at?: string
+          depth?: string
+          exclusions?: string | null
+          focus_areas?: string[]
+          forms_policy?: string
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_run_at?: string | null
+          next_run_at?: string
+          outcome?: string | null
+          scan_type?: string
+          scheduled_days?: string[] | null
+          scheduled_time?: string
+          timezone?: string
+          updated_at?: string
+          user_id?: string
+          website_id?: string
+        }
+        Relationships: []
+      }
+      user_seen_versions: {
+        Row: {
+          id: string
+          seen_at: string
+          user_id: string
+          version_id: string
+        }
+        Insert: {
+          id?: string
+          seen_at?: string
+          user_id: string
+          version_id: string
+        }
+        Update: {
+          id?: string
+          seen_at?: string
+          user_id?: string
+          version_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_seen_versions_version_id_fkey"
+            columns: ["version_id"]
+            isOneToOne: false
+            referencedRelation: "app_versions"
             referencedColumns: ["id"]
           },
         ]
