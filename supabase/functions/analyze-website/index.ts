@@ -226,7 +226,18 @@ For each issue, include specific fix instructions for developers AND non-technic
 
     let finalScanId = scan_id;
     if (scan_id) {
-      await adminClient.from('scans').update(scanData).eq('id', scan_id);
+      const { data: updated, error: updErr } = await adminClient
+        .from('scans')
+        .update(scanData)
+        .eq('id', scan_id)
+        .eq('user_id', user.id)
+        .select('id');
+      if (updErr) throw updErr;
+      if (!updated || updated.length === 0) {
+        return new Response(JSON.stringify({ error: 'Scan not found or not owned by user' }), {
+          status: 403, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
     } else {
       const { data: newScan, error: scanError } = await adminClient
         .from('scans').insert(scanData).select('id').single();
