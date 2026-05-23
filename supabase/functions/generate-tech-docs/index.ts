@@ -42,13 +42,67 @@ serve(async (req) => {
       formatted = `https://${formatted}`;
     }
 
+    // SSRF guard: only allow public https URLs
+    let parsedUrl: URL;
+    try {
+      parsedUrl = new URL(formatted);
+    } catch {
+      return new Response(JSON.stringify({ error: 'Invalid URL' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    if (parsedUrl.protocol !== 'https:') {
+      return new Response(JSON.stringify({ error: 'Only https:// URLs are allowed' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    const hostname = parsedUrl.hostname.toLowerCase();
+    const isIpLiteral = /^[0-9.]+$/.test(hostname) || hostname.includes(':');
+    const blockedHostnames = ['localhost', 'metadata.google.internal', 'metadata.goog'];
+    if (blockedHostnames.includes(hostname) || hostname.endsWith('.local') || hostname.endsWith('.internal')) {
+      return new Response(JSON.stringify({ error: 'Blocked hostname' }), {
+        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    // Resolve and check IP addresses
+    try {
+      const records = await Promise.allSettled([
+        Deno.resolveDns(hostname, 'A').catch(() => []),
+        Deno.resolveDns(hostname, 'AAAA').catch(() => []),
+      ]);
+      const ips: string[] = [];
+      for (const r of records) if (r.status === 'fulfilled') ips.push(...(r.value as string[]));
+      if (isIpLiteral) ips.push(hostname);
+      const isPrivate = (ip: string) => {
+        if (ip.includes(':')) {
+          const low = ip.toLowerCase();
+          return low === '::1' || low.startsWith('fc') || low.startsWith('fd') || low.startsWith('fe80') || low.startsWith('::ffff:');
+        }
+        const parts = ip.split('.').map(Number);
+        if (parts.length !== 4 || parts.some(n => isNaN(n))) return true;
+        const [a, b] = parts;
+        return a === 0 || a === 10 || a === 127 || a >= 224 ||
+          (a === 169 && b === 254) ||
+          (a === 172 && b >= 16 && b <= 31) ||
+          (a === 192 && b === 168) ||
+          (a === 100 && b >= 64 && b <= 127);
+      };
+      if (ips.length > 0 && ips.some(isPrivate)) {
+        return new Response(JSON.stringify({ error: 'Blocked: private/internal IP' }), {
+          status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+    } catch (e) {
+      console.warn('DNS resolve failed', e);
+    }
+
     // Light fetch (timeboxed) — enough HTML to give Gemini real context
     let html = '';
     let pageTitle = '';
     try {
       const ctrl = new AbortController();
       const t = setTimeout(() => ctrl.abort(), 10000);
-      const res = await fetch(formatted, { signal: ctrl.signal, headers: { 'User-Agent': 'Mozilla/5.0 ProjectBondBot/1.0' } });
+      const res = await fetch(formatted, { signal: ctrl.signal, redirect: 'error', headers: { 'User-Agent': 'Mozilla/5.0 ProjectBondBot/1.0' } });
       clearTimeout(t);
       if (res.ok) {
         const text = await res.text();

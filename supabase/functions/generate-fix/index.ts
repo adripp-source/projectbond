@@ -109,7 +109,7 @@ Provide a complete, ready-to-implement solution.`
         : target_type === 'content' ? 'fix_content'
         : 'fix_visual';
 
-      await adminClient.from('scan_issues').update({ [updateField]: fix }).eq('id', issue_id);
+      await adminClient.from('scan_issues').update({ [updateField]: fix }).eq('id', issue_id).eq('user_id', user.id);
     }
 
     return new Response(JSON.stringify({ fix, target_type }), {
