@@ -58,11 +58,26 @@ export interface PageRenderResult {
 
 export interface DetectedIssue {
   id: string;
-  type: 'hidden_cta' | 'dead_click' | 'infinite_loading' | 'form_failure' | 'nav_failure';
-  severity: 'critical' | 'high' | 'medium';
+  type:
+    | 'hidden_cta'
+    | 'dead_click'
+    | 'infinite_loading'
+    | 'form_failure'
+    | 'nav_failure'
+    | 'workflow_blocked'
+    | 'login_failed'
+    | 'signup_blocked'
+    | 'onboarding_stuck'
+    | 'cta_dead_after_click'
+    | 'redirect_loop'
+    | 'validation_trap'
+    | 'dashboard_unreachable';
+  severity: 'critical' | 'high' | 'medium' | 'low';
   title: string;
   description: string;
   page: string;
+  workflow?: string;
+  blockedStep?: string;
   evidence: {
     screenshotPath?: string;
     consoleErrors: string[];
@@ -70,6 +85,7 @@ export interface DetectedIssue {
   };
   confidence: 'verified' | 'strong' | 'possible';
 }
+
 
 export interface ScanResult {
   url: string;
