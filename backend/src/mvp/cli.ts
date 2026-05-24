@@ -16,6 +16,11 @@ import {
   saveReport,
 } from './scanner';
 import { recordScanSession, getLatestScanForUrl, getStatusSummary } from './state-manager';
+import {
+  runBehaviorConsistencyChecks,
+  printBehaviorConsistencyResults,
+} from './behavior-consistency-cli';
+import { randomUUID } from 'crypto';
 
 // ============================================================================
 // UTILITIES
@@ -229,6 +234,21 @@ async function runScan(urlString: string): Promise<void> {
     if (allIssues.length === 0) {
       console.log('  ✓ No issues detected on homepage');
     }
+
+    // Quiet add-on: behavior consistency check (compares against last snapshot)
+    try {
+      const scanId = randomUUID();
+      const { report: bcReport } = await runBehaviorConsistencyChecks(
+        page,
+        url.toString(),
+        scanId
+      );
+      printBehaviorConsistencyResults(bcReport);
+    } catch (e) {
+      // Never fail the main scan because of the add-on
+      console.log(`Note: behavior consistency layer skipped (${(e as Error).message})`);
+    }
+
 
     // Generate report
     console.log('\n📝 Generating report...');
