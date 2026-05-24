@@ -16,6 +16,11 @@ import {
   saveReport,
 } from './scanner';
 import { recordScanSession, getLatestScanForUrl, getStatusSummary } from './state-manager';
+import {
+  runBehaviorConsistencyChecks,
+  printBehaviorConsistencyResults,
+} from './behavior-consistency-cli';
+import { randomUUID } from 'crypto';
 
 // ============================================================================
 // UTILITIES
