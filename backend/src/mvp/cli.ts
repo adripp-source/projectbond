@@ -235,6 +235,21 @@ async function runScan(urlString: string): Promise<void> {
       console.log('  ✓ No issues detected on homepage');
     }
 
+    // Quiet add-on: behavior consistency check (compares against last snapshot)
+    try {
+      const scanId = randomUUID();
+      const { report: bcReport } = await runBehaviorConsistencyChecks(
+        page,
+        url.toString(),
+        scanId
+      );
+      printBehaviorConsistencyResults(bcReport);
+    } catch (e) {
+      // Never fail the main scan because of the add-on
+      console.log(`Note: behavior consistency layer skipped (${(e as Error).message})`);
+    }
+
+
     // Generate report
     console.log('\n📝 Generating report...');
     const report = generateReport(url.toString(), [discoveredPage], allIssues);
