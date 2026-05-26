@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import AIChatBar from "@/components/AIChatBar";
+
 import FigmaCanvas from "@/components/visual-editor/FigmaCanvas";
 
 type ToolType = "browse" | "cursor" | "highlight" | "text" | "box" | "move";
