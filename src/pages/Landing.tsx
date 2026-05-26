@@ -126,44 +126,44 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Everything your team needs
+              Reliability testing for production
             </h2>
             <p className="text-lg text-muted-foreground">
-              Built for agencies, freelancers, startups, and modern teams
+              Infrastructure-grade QA for product, platform, and SRE teams
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
             {[
               {
-                title: "Unified Workspace",
-                description: "Projects, clients, files, messages, automations, and analytics—all in one connected environment.",
+                title: "Authentication flow checks",
+                description: "Walk through login, signup, and OAuth paths to detect redirect loops, broken sessions, and unreachable post-auth routes.",
+                icon: "🔐"
+              },
+              {
+                title: "Broken interaction detection",
+                description: "Click, type, and navigate like a real user. Surface dead buttons, unhandled errors, and silent failures across every flow.",
+                icon: "🧪"
+              },
+              {
+                title: "Loading-state monitoring",
+                description: "Flag routes that exceed loading thresholds, stall on spinners, or hang on async requests in production.",
+                icon: "⏱️"
+              },
+              {
+                title: "Workflow continuation",
+                description: "Tests don't stop at the first screen — multi-step forms, route progressions, and conditional flows are walked end to end.",
+                icon: "🧭"
+              },
+              {
+                title: "Reproducible evidence",
+                description: "Every issue ships with steps to reproduce, network traces, and replayable paths. No guesswork for the engineer fixing it.",
+                icon: "📎"
+              },
+              {
+                title: "Behavior consistency",
+                description: "Compare scan-over-scan to catch regressions in forms, data transfer, and chatbot or assistant responses between deploys.",
                 icon: "📊"
-              },
-              {
-                title: "Client Collaboration",
-                description: "Dedicated client spaces with shared notes, deliverables, and real-time communication.",
-                icon: "👥"
-              },
-              {
-                title: "Relationship Intelligence",
-                description: "Track client engagement, project momentum, communication patterns, and collaboration health.",
-                icon: "📈"
-              },
-              {
-                title: "Workflow Automation",
-                description: "Build powerful workflows with visual automation builder. No code required.",
-                icon: "⚡"
-              },
-              {
-                title: "Team Communication",
-                description: "Built-in messaging, @mentions, file sharing, and context-aware notifications.",
-                icon: "💬"
-              },
-              {
-                title: "Deep Analytics",
-                description: "Understand your business with revenue tracking, project completion rates, and team productivity metrics.",
-                icon: "📉"
               },
             ].map((feature, i) => (
               <motion.div
