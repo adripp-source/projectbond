@@ -112,7 +112,7 @@ export default function ReadableOutcome({ raw, level }: Props) {
         className="w-full flex items-center justify-center gap-1 py-2 text-[10px] uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
       >
         <ChevronDown className={`w-3 h-3 transition-transform ${showRaw ? "rotate-180" : ""}`} />
-        {showRaw ? "Hide raw output" : "View raw AI output"}
+        {showRaw ? "Hide raw output" : "View raw output"}
       </button>
 
       {showRaw && (
