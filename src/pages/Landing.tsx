@@ -49,25 +49,25 @@ export default function Landing() {
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-primary/20 mb-6">
               <div className="w-2 h-2 rounded-full bg-primary" />
-              <span className="text-xs font-medium text-foreground">The collaboration operating system</span>
+              <span className="text-xs font-medium text-foreground">Behavioral QA &amp; exploratory testing</span>
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6 tracking-tight">
-              Where projects, people, and growth <span className="text-gradient">work together</span>
+              Catch broken flows before <span className="text-gradient">your users do</span>
             </h1>
 
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              ProjectBond unifies project management, client collaboration, team communication, and relationship intelligence into one beautifully connected workspace.
+              ProjectBond runs human-like interaction tests against your production site — surfacing authentication loops, broken interactions, dead links, and loading-state regressions with reproducible evidence.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
               <Link to="/auth">
                 <Button size="lg" className="bg-gradient-primary text-white gap-2">
-                  Start Free <ArrowRight className="w-4 h-4" />
+                  Start behavioral scan <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
               <Button size="lg" variant="outline" className="gap-2">
-                Watch Demo <ArrowRight className="w-4 h-4" />
+                See sample report <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           </motion.div>
@@ -126,44 +126,44 @@ export default function Landing() {
         <div className="max-w-5xl mx-auto">
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold text-foreground mb-4">
-              Everything your team needs
+              Reliability testing for production
             </h2>
             <p className="text-lg text-muted-foreground">
-              Built for agencies, freelancers, startups, and modern teams
+              Infrastructure-grade QA for product, platform, and SRE teams
             </p>
           </div>
 
           <div className="grid md:grid-cols-2 gap-8">
             {[
               {
-                title: "Unified Workspace",
-                description: "Projects, clients, files, messages, automations, and analytics—all in one connected environment.",
+                title: "Authentication flow checks",
+                description: "Walk through login, signup, and OAuth paths to detect redirect loops, broken sessions, and unreachable post-auth routes.",
+                icon: "🔐"
+              },
+              {
+                title: "Broken interaction detection",
+                description: "Click, type, and navigate like a real user. Surface dead buttons, unhandled errors, and silent failures across every flow.",
+                icon: "🧪"
+              },
+              {
+                title: "Loading-state monitoring",
+                description: "Flag routes that exceed loading thresholds, stall on spinners, or hang on async requests in production.",
+                icon: "⏱️"
+              },
+              {
+                title: "Workflow continuation",
+                description: "Tests don't stop at the first screen — multi-step forms, route progressions, and conditional flows are walked end to end.",
+                icon: "🧭"
+              },
+              {
+                title: "Reproducible evidence",
+                description: "Every issue ships with steps to reproduce, network traces, and replayable paths. No guesswork for the engineer fixing it.",
+                icon: "📎"
+              },
+              {
+                title: "Behavior consistency",
+                description: "Compare scan-over-scan to catch regressions in forms, data transfer, and chatbot or assistant responses between deploys.",
                 icon: "📊"
-              },
-              {
-                title: "Client Collaboration",
-                description: "Dedicated client spaces with shared notes, deliverables, and real-time communication.",
-                icon: "👥"
-              },
-              {
-                title: "Relationship Intelligence",
-                description: "Track client engagement, project momentum, communication patterns, and collaboration health.",
-                icon: "📈"
-              },
-              {
-                title: "Workflow Automation",
-                description: "Build powerful workflows with visual automation builder. No code required.",
-                icon: "⚡"
-              },
-              {
-                title: "Team Communication",
-                description: "Built-in messaging, @mentions, file sharing, and context-aware notifications.",
-                icon: "💬"
-              },
-              {
-                title: "Deep Analytics",
-                description: "Understand your business with revenue tracking, project completion rates, and team productivity metrics.",
-                icon: "📉"
               },
             ].map((feature, i) => (
               <motion.div
@@ -186,7 +186,7 @@ export default function Landing() {
       {/* Social Proof */}
       <section className="py-16 px-6 bg-background">
         <div className="max-w-4xl mx-auto text-center">
-          <p className="text-sm text-muted-foreground mb-8">TRUSTED BY MODERN TEAMS</p>
+          <p className="text-sm text-muted-foreground mb-8">TRUSTED BY PRODUCT &amp; PLATFORM TEAMS</p>
           <div className="flex flex-wrap justify-center items-center gap-8 opacity-60">
             {["Acme Studio", "Vertex", "Luminous", "Spherule", "Cloudverge"].map(name => (
               <div key={name} className="flex items-center gap-2">
@@ -202,14 +202,14 @@ export default function Landing() {
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto bg-gradient-card border border-primary/10 rounded-2xl p-12 text-center">
           <h2 className="text-3xl font-bold text-foreground mb-4">
-            Ready to transform the way your team works?
+            Monitor production flows. Catch regressions before users do.
           </h2>
           <p className="text-lg text-muted-foreground mb-8">
-            Join thousands of teams already building better with ProjectBond.
+            Run your first behavioral scan in under a minute.
           </p>
           <Link to="/auth">
             <Button size="lg" className="bg-gradient-primary text-white gap-2">
-              Get Started for Free <ArrowRight className="w-4 h-4" />
+              Start behavioral scan <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
         </div>
@@ -227,7 +227,7 @@ export default function Landing() {
                 <span className="font-semibold text-foreground">ProjectBond</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Where projects, people, and growth work together.
+                Behavioral QA and exploratory testing for production websites.
               </p>
             </div>
             <div>
