@@ -49,25 +49,25 @@ export default function Landing() {
           >
             <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-secondary/50 border border-primary/20 mb-6">
               <div className="w-2 h-2 rounded-full bg-primary" />
-              <span className="text-xs font-medium text-foreground">The collaboration operating system</span>
+              <span className="text-xs font-medium text-foreground">Behavioral QA &amp; exploratory testing</span>
             </div>
 
             <h1 className="text-5xl md:text-6xl font-bold text-foreground mb-6 tracking-tight">
-              Where projects, people, and growth <span className="text-gradient">work together</span>
+              Catch broken flows before <span className="text-gradient">your users do</span>
             </h1>
 
             <p className="text-lg text-muted-foreground mb-8 max-w-2xl mx-auto leading-relaxed">
-              ProjectBond unifies project management, client collaboration, team communication, and relationship intelligence into one beautifully connected workspace.
+              ProjectBond runs human-like interaction tests against your production site — surfacing authentication loops, broken interactions, dead links, and loading-state regressions with reproducible evidence.
             </p>
 
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-12">
               <Link to="/auth">
                 <Button size="lg" className="bg-gradient-primary text-white gap-2">
-                  Start Free <ArrowRight className="w-4 h-4" />
+                  Start behavioral scan <ArrowRight className="w-4 h-4" />
                 </Button>
               </Link>
               <Button size="lg" variant="outline" className="gap-2">
-                Watch Demo <ArrowRight className="w-4 h-4" />
+                See sample report <ArrowRight className="w-4 h-4" />
               </Button>
             </div>
           </motion.div>
