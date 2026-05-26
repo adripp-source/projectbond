@@ -377,7 +377,7 @@ const MediaFootprint = () => {
         </>
       )}
 
-      <AIChatBar context="media" placeholder="Ask about your media presence..." />
+      
     </div>
   );
 };
