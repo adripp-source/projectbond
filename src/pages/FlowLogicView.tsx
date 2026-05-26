@@ -267,7 +267,7 @@ const FlowLogicView = () => {
             {/* Command input */}
             <div className="p-4 border-b border-border">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                <Bot className="w-3 h-3 inline mr-1" />AI Command
+                <Code className="w-3 h-3 inline mr-1" />Command
               </h4>
               <Textarea value={command} onChange={e => setCommand(e.target.value)}
                 placeholder="e.g. Change the login flow to use SSO instead of email..."
