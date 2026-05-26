@@ -541,7 +541,7 @@ const TechDocs = () => {
         description="Quick = bullet summary. Standard = balanced. Deep = thorough analysis. Custom = tell us exactly what you want."
       />
 
-      <AIChatBar context="analysis" placeholder="Ask about the docs or features..." />
+      
     </div>
   );
 };
