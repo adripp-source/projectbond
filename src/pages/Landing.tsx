@@ -151,7 +151,7 @@ export default function Landing() {
                 icon: "📈"
               },
               {
-                title: "Smart Automation",
+                title: "Workflow Automation",
                 description: "Build powerful workflows with visual automation builder. No code required.",
                 icon: "⚡"
               },
