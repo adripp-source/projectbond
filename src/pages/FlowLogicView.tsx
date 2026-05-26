@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { GitBranch, Loader2, RefreshCw, ArrowRight, Bot, Globe, Code, Workflow } from "lucide-react";
+import { GitBranch, Loader2, RefreshCw, ArrowRight, Globe, Code, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
