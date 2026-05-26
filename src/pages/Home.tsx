@@ -345,7 +345,7 @@ const Home = () => {
         ))}
       </div>
 
-      <AIChatBar context="home" placeholder="What would you like to improve?" />
+      
     </div>
   );
 };
