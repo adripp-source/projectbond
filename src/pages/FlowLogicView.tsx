@@ -1,13 +1,13 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { GitBranch, Loader2, RefreshCw, ArrowRight, Bot, Globe, Code, Workflow } from "lucide-react";
+import { GitBranch, Loader2, RefreshCw, ArrowRight, Globe, Code, Workflow } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import AIChatBar from "@/components/AIChatBar";
+
 
 interface FlowNode {
   id: string;
@@ -267,7 +267,7 @@ const FlowLogicView = () => {
             {/* Command input */}
             <div className="p-4 border-b border-border">
               <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">
-                <Bot className="w-3 h-3 inline mr-1" />AI Command
+                <Code className="w-3 h-3 inline mr-1" />Command
               </h4>
               <Textarea value={command} onChange={e => setCommand(e.target.value)}
                 placeholder="e.g. Change the login flow to use SSO instead of email..."
@@ -291,7 +291,7 @@ const FlowLogicView = () => {
           </div>
         )}
       </div>
-      <AIChatBar context="flow" placeholder="Ask about user flows..." />
+      
     </div>
   );
 };

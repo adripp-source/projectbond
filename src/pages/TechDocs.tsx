@@ -13,7 +13,7 @@ import { Badge } from "@/components/ui/badge";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
-import AIChatBar from "@/components/AIChatBar";
+
 import SuggestedWebsites from "@/components/SuggestedWebsites";
 import SmartUrlError from "@/components/SmartUrlError";
 import { isProbablyValidUrl, normalizeUrl } from "@/lib/urlSuggest";
@@ -541,7 +541,7 @@ const TechDocs = () => {
         description="Quick = bullet summary. Standard = balanced. Deep = thorough analysis. Custom = tell us exactly what you want."
       />
 
-      <AIChatBar context="analysis" placeholder="Ask about the docs or features..." />
+      
     </div>
   );
 };

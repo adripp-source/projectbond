@@ -224,7 +224,7 @@ const Onboarding = () => {
     setIsAnalyzing(true);
     setStep("analyzing");
     try {
-      setProgress("Analyzing website with AI...");
+      setProgress("Analyzing website...");
       await api.analyzeWebsite(pendingWebsiteUrl, companyName.trim() || undefined);
 
       if (companyName.trim()) {

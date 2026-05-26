@@ -11,7 +11,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import AIChatBar from "@/components/AIChatBar";
+
 
 interface ScanData {
   id: string;
@@ -255,7 +255,7 @@ const Home = () => {
         })}
       </div>
 
-      {/* AI Summary */}
+      {/* Scan Summary */}
       {scan.ai_summary && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.2 }}
           className="bg-card border border-border rounded-lg p-5 mb-6 shadow-card">
@@ -263,7 +263,7 @@ const Home = () => {
             <div className="w-6 h-6 rounded-md bg-gradient-primary flex items-center justify-center">
               <TrendingUp className="w-3.5 h-3.5 text-primary-foreground" />
             </div>
-            <h3 className="text-sm font-semibold text-foreground">AI Summary</h3>
+            <h3 className="text-sm font-semibold text-foreground">Scan Summary</h3>
           </div>
           <p className="text-sm text-secondary-foreground leading-relaxed">{scan.ai_summary}</p>
         </motion.div>
@@ -345,7 +345,7 @@ const Home = () => {
         ))}
       </div>
 
-      <AIChatBar context="home" placeholder="What would you like to improve?" />
+      
     </div>
   );
 };

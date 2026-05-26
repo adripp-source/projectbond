@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import AIChatBar from "@/components/AIChatBar";
+
 import { Newspaper, ThumbsUp, ThumbsDown, Minus, Lightbulb, Loader2, Users, Plus, Trash2, Globe, User, ExternalLink, Sparkles, ArrowRight } from "lucide-react";
 import { Area, AreaChart, ResponsiveContainer, XAxis, YAxis, Tooltip } from "recharts";
 import { supabase } from "@/integrations/supabase/client";
@@ -307,12 +307,12 @@ const MediaFootprint = () => {
             </div>
           )}
 
-          {/* AI Suggestions Engine */}
+          {/* Suggestions */}
           {analysis.suggestions && analysis.suggestions.length > 0 && (
             <div className="bg-card border border-border rounded-lg p-5 mb-8 shadow-card">
               <div className="flex items-center gap-2 mb-4">
                 <Sparkles className="w-4 h-4 text-primary" />
-                <h3 className="text-sm font-semibold text-foreground">AI Suggestions</h3>
+                <h3 className="text-sm font-semibold text-foreground">Suggestions</h3>
                 <span className="text-xs text-muted-foreground ml-auto">{analysis.suggestions.length} actionable insights</span>
               </div>
               <div className="space-y-3">
@@ -377,7 +377,7 @@ const MediaFootprint = () => {
         </>
       )}
 
-      <AIChatBar context="media" placeholder="Ask about your media presence..." />
+      
     </div>
   );
 };

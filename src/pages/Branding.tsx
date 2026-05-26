@@ -149,10 +149,10 @@ const Branding = () => {
         </div>
       </div>
 
-      {/* Brand Summary (from AI analysis) */}
+      {/* Brand Summary */}
       {(tone || positioning) && (
         <div className="bg-card border border-border rounded-lg p-6 mb-6 shadow-card">
-          <h3 className="text-sm font-semibold text-foreground mb-4">Brand Summary (AI-Generated)</h3>
+          <h3 className="text-sm font-semibold text-foreground mb-4">Brand Summary</h3>
           <div className="grid grid-cols-2 gap-6">
             {tone && (
               <div>
