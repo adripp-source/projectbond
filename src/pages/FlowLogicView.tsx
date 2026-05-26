@@ -291,7 +291,7 @@ const FlowLogicView = () => {
           </div>
         )}
       </div>
-      <AIChatBar context="flow" placeholder="Ask about user flows..." />
+      
     </div>
   );
 };
