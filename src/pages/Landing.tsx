@@ -227,7 +227,7 @@ export default function Landing() {
                 <span className="font-semibold text-foreground">ProjectBond</span>
               </div>
               <p className="text-sm text-muted-foreground">
-                Where projects, people, and growth work together.
+                Behavioral QA and exploratory testing for production websites.
               </p>
             </div>
             <div>
