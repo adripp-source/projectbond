@@ -783,8 +783,6 @@ const VisualEditor = () => {
         )}
       </AnimatePresence>
 
-      {/* AI Chat Bar */}
-      <AIChatBar context="editor" placeholder="Ask about this UI..." />
 
       {/* Figma-style canvas overlay */}
       {canvasMode && activeUrl && (
