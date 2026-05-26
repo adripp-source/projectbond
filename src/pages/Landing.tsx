@@ -186,7 +186,7 @@ export default function Landing() {
       {/* Social Proof */}
       <section className="py-16 px-6 bg-background">
         <div className="max-w-4xl mx-auto text-center">
-          <p className="text-sm text-muted-foreground mb-8">TRUSTED BY MODERN TEAMS</p>
+          <p className="text-sm text-muted-foreground mb-8">TRUSTED BY PRODUCT &amp; PLATFORM TEAMS</p>
           <div className="flex flex-wrap justify-center items-center gap-8 opacity-60">
             {["Acme Studio", "Vertex", "Luminous", "Spherule", "Cloudverge"].map(name => (
               <div key={name} className="flex items-center gap-2">
@@ -202,14 +202,14 @@ export default function Landing() {
       <section className="py-20 px-6">
         <div className="max-w-3xl mx-auto bg-gradient-card border border-primary/10 rounded-2xl p-12 text-center">
           <h2 className="text-3xl font-bold text-foreground mb-4">
-            Ready to transform the way your team works?
+            Monitor production flows. Catch regressions before users do.
           </h2>
           <p className="text-lg text-muted-foreground mb-8">
-            Join thousands of teams already building better with ProjectBond.
+            Run your first behavioral scan in under a minute.
           </p>
           <Link to="/auth">
             <Button size="lg" className="bg-gradient-primary text-white gap-2">
-              Get Started for Free <ArrowRight className="w-4 h-4" />
+              Start behavioral scan <ArrowRight className="w-4 h-4" />
             </Button>
           </Link>
         </div>
