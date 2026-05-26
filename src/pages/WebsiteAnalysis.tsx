@@ -412,7 +412,7 @@ const WebsiteAnalysis = () => {
         />
       )}
 
-      <AIChatBar context="analysis" placeholder="Ask about your website health..." />
+      
     </div>
   );
 };
