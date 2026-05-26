@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 import { Globe, Shield, Play, RefreshCw, Plus, Loader2, Trash2, Gauge, Eye, Accessibility, Search, Zap, AlertTriangle, TrendingUp } from "lucide-react";
-import AIChatBar from "@/components/AIChatBar";
+
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import ActionItem from "@/components/ui/action-item";
