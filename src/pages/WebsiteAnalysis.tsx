@@ -80,8 +80,10 @@ const WebsiteAnalysis = () => {
       setSecurityScore(scanRes.data.security_score);
       const { data: issues } = await supabase.from("scan_issues").select("*").eq("scan_id", scanRes.data.id);
       if (issues) {
-        setQaIssues(issues.filter(i => ["qa", "performance", "accessibility", "content"].includes(i.category)));
-        setSecurityIssues(issues.filter(i => i.category === "security"));
+        // Hide ignored findings — user trained the model to skip these.
+        const visible = (issues as IssueData[]).filter(i => i.status !== "ignored");
+        setQaIssues(visible.filter(i => ["qa", "performance", "accessibility", "content"].includes(i.category)));
+        setSecurityIssues(visible.filter(i => i.category === "security"));
       }
     }
     const today = new Date(); today.setHours(0, 0, 0, 0);
