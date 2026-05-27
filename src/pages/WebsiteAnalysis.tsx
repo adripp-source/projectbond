@@ -229,7 +229,7 @@ const WebsiteAnalysis = () => {
         <div className="flex gap-2 mb-3">
           <Input placeholder="https://yourwebsite.com" value={newUrl} onChange={(e) => { setNewUrl(e.target.value); setUrlError(null); }} className="bg-secondary border-border text-foreground"
             onKeyDown={e => e.key === "Enter" && addWebsite()} />
-          <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" className="bg-gradient-primary text-primary-foreground">
+          <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary">
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
         </div>
