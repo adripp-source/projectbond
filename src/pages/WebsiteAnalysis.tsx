@@ -403,20 +403,37 @@ const WebsiteAnalysis = () => {
         </div>
       )}
 
-      {/* QA Issues */}
-      {qaIssues.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Play className="w-4 h-4 text-primary" />QA Issues<span className="text-xs text-muted-foreground font-normal">({qaIssues.length})</span>
-          </h2>
-          <div className="space-y-2">
-            {qaIssues.map((issue, i) => (
-              <ActionItem key={issue.id} title={issue.title} description={issue.description} priority={issue.priority as any}
-                impact={issue.impact || ""} location={issue.location || ""} fixTypes={getFixTypes(issue)} index={i} />
-            ))}
+      {/* QA Issues — grouped by category */}
+      {qaGroups.map(([cat, group]) => {
+        const meta = categoryMeta[cat] || categoryMeta.qa;
+        const Icon = meta.icon;
+        return (
+          <div key={cat} className="mb-8">
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Icon className="w-4 h-4 text-primary" />
+              {meta.label}
+              <span className="text-xs text-muted-foreground font-normal">({group.length})</span>
+            </h2>
+            <div className="space-y-2">
+              {group.map((issue, i) => (
+                <ActionItem
+                  key={issue.id}
+                  title={issue.title}
+                  description={issue.description}
+                  priority={issue.priority as any}
+                  impact={issue.impact || ""}
+                  location={issue.location || ""}
+                  fixTypes={getFixTypes(issue)}
+                  index={i}
+                  feedback={(issue.feedback as any) || null}
+                  onFeedback={(v) => handleFeedback(issue, v)}
+                  onIgnore={() => handleIgnore(issue)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })}
 
       {/* Security */}
       {securityIssues.length > 0 && (
@@ -426,8 +443,19 @@ const WebsiteAnalysis = () => {
           </h2>
           <div className="space-y-2">
             {securityIssues.map((issue, i) => (
-              <ActionItem key={issue.id} title={issue.title} description={issue.description} priority={issue.priority as any}
-                impact={issue.impact || ""} location={issue.location || ""} fixTypes={getFixTypes(issue)} index={i} />
+              <ActionItem
+                key={issue.id}
+                title={issue.title}
+                description={issue.description}
+                priority={issue.priority as any}
+                impact={issue.impact || ""}
+                location={issue.location || ""}
+                fixTypes={getFixTypes(issue)}
+                index={i}
+                feedback={(issue.feedback as any) || null}
+                onFeedback={(v) => handleFeedback(issue, v)}
+                onIgnore={() => handleIgnore(issue)}
+              />
             ))}
           </div>
         </div>
