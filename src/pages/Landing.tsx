@@ -162,7 +162,7 @@ export default function Landing() {
               },
               {
                 title: "Behavior consistency",
-                description: "Compare scan-over-scan to catch regressions in forms, data transfer, and chatbot or assistant responses between deploys.",
+                description: "Compare scan-over-scan to catch regressions in forms, data transfer, and interactive response behavior between deploys.",
                 icon: "📊"
               },
             ].map((feature, i) => (
