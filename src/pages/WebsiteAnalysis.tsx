@@ -202,20 +202,20 @@ const WebsiteAnalysis = () => {
   return (
     <div className="p-6 lg:p-10 max-w-[1400px] mx-auto w-full relative">
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mb-8">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between border-b border-border pb-5">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-gradient-primary flex items-center justify-center">
-              <Globe className="w-4 h-4 text-primary-foreground" />
+            <div className="w-9 h-9 rounded-md bg-secondary border border-border flex items-center justify-center">
+              <Globe className="w-4 h-4 text-muted-foreground" />
             </div>
             <div>
-              <h1 className="text-2xl font-bold text-foreground tracking-tight">Website Analysis</h1>
-              <p className="text-sm text-muted-foreground">Quality Assurance + Google PageSpeed + Security</p>
+              <h1 className="text-xl font-semibold text-foreground tracking-tight">Production reliability</h1>
+              <p className="text-xs text-muted-foreground mt-0.5">Behavioral QA · PageSpeed · Security checks</p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-muted-foreground">{scanCount}/15 scans today</span>
+          <div className="flex items-center gap-3">
+            <span className="text-[11px] uppercase tracking-wider text-muted-foreground font-medium">{scanCount}/15 scans today</span>
             <Button size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary" onClick={runScan} disabled={scanning}>
-              {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}Run Scan
+              {scanning ? <Loader2 className="w-3.5 h-3.5 animate-spin mr-1.5" /> : <RefreshCw className="w-3.5 h-3.5 mr-1.5" />}Start behavioral scan
             </Button>
           </div>
         </div>
@@ -229,7 +229,7 @@ const WebsiteAnalysis = () => {
         <div className="flex gap-2 mb-3">
           <Input placeholder="https://yourwebsite.com" value={newUrl} onChange={(e) => { setNewUrl(e.target.value); setUrlError(null); }} className="bg-secondary border-border text-foreground"
             onKeyDown={e => e.key === "Enter" && addWebsite()} />
-          <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" className="bg-gradient-primary text-primary-foreground">
+          <Button onClick={addWebsite} disabled={adding || !newUrl.trim()} size="sm" variant="outline" className="border-border text-foreground hover:bg-secondary">
             {adding ? <Loader2 className="w-4 h-4 animate-spin" /> : <Plus className="w-4 h-4" />}
           </Button>
         </div>
@@ -346,11 +346,11 @@ const WebsiteAnalysis = () => {
 
       {/* Safe Testing Mode */}
       {websites.length > 0 && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 mb-6">
-          <Eye className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 p-3 rounded-md bg-secondary/40 border border-border mb-6">
+          <Eye className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs font-medium text-foreground">Safe Testing Mode Active</p>
-            <p className="text-[10px] text-muted-foreground">Bond will not make purchases, submit forms, or modify data unless explicitly allowed.</p>
+            <p className="text-xs font-medium text-foreground">Safe testing mode active</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Scans will not submit forms, complete purchases, or modify data unless explicitly allowed.</p>
           </div>
         </div>
       )}
