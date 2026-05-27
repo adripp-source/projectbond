@@ -24,6 +24,7 @@ interface IssueData {
   priority: string; impact: string | null; location: string | null;
   fix_dev: string | null; fix_code: string | null; fix_nocode: string | null;
   fix_content: string | null; fix_visual: string | null;
+  status?: string | null; feedback?: string | null;
 }
 
 interface PageSpeedScores {
