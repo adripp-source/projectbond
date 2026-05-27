@@ -78,23 +78,27 @@ const FlowLogicView = () => {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      // Parse AI output into flow data
-      try {
-        const parsed = JSON.parse(data.output);
-        setFlowData(parsed);
-      } catch {
-        // AI returned text — create a simple flow
-        const lines = (data.output as string).split("\n").filter(Boolean).slice(0, 10);
-        const nodes: FlowNode[] = lines.map((line, i) => ({
-          id: `n${i}`,
-          label: line.replace(/^[-•*\d.]+\s*/, "").trim(),
-          type: i === 0 ? "page" : i === lines.length - 1 ? "external" : "action",
-          x: 100 + (i % 3) * 280,
-          y: 80 + Math.floor(i / 3) * 140,
-        }));
-        const edges: FlowEdge[] = nodes.slice(1).map((n, i) => ({ from: nodes[i].id, to: n.id }));
-        setFlowData({ nodes, edges, summary: data.output.slice(0, 200) });
+      // Parse AI output into flow data. The edge function returns a clean JSON
+      // string with auto-laid-out nodes, but we still defensively strip code fences
+      // in case an older response sneaks through.
+      const raw: string = typeof data.output === "string" ? data.output : JSON.stringify(data.output);
+      const cleaned = raw.trim().replace(/^```(?:json)?\s*/i, "").replace(/```$/i, "").trim();
+      let parsed: any = null;
+      try { parsed = JSON.parse(cleaned); } catch {
+        const m = cleaned.match(/\{[\s\S]*\}/);
+        if (m) { try { parsed = JSON.parse(m[0]); } catch { /* noop */ } }
       }
+      if (parsed && Array.isArray(parsed.nodes) && parsed.nodes.length > 0) {
+        // Backfill positions if missing
+        parsed.nodes.forEach((n: any, i: number) => {
+          if (typeof n.x !== "number") n.x = 100 + (i % 3) * 300;
+          if (typeof n.y !== "number") n.y = 80 + Math.floor(i / 3) * 120;
+        });
+        setFlowData(parsed);
+      } else {
+        toast.error("Could not build a valid flow. Try again.");
+      }
+
       toast.success("Flow generated!");
     } catch (e: any) {
       toast.error(e.message || "Failed to generate flow");
