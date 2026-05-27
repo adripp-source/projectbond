@@ -40,6 +40,25 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
 
+    // Pull recent user feedback so the model learns from prior thumbs up/down + ignored.
+    const trainingClient = createClient(
+      Deno.env.get('SUPABASE_URL')!,
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
+    );
+    const { data: feedbackRows } = await trainingClient
+      .from('scan_issues')
+      .select('title, category, feedback, status')
+      .eq('user_id', user.id)
+      .or('feedback.not.is.null,status.eq.ignored')
+      .order('created_at', { ascending: false })
+      .limit(80);
+    const goodEx = (feedbackRows || []).filter(r => r.feedback === 'good').slice(0, 15);
+    const badEx = (feedbackRows || []).filter(r => r.feedback === 'bad' || r.status === 'ignored').slice(0, 25);
+    const trainingBlock = (goodEx.length || badEx.length)
+      ? `\n\nUSER FEEDBACK MEMORY (use to prioritize the right findings):\nGOOD examples the user found useful — produce MORE like these:\n${goodEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}\n\nBAD / IGNORED examples the user dismissed — AVOID raising similar findings unless materially different:\n${badEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}`
+      : '';
+
+
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -113,7 +132,7 @@ EDGE CASE GENERATION:
 - Generate realistic test cases for the most critical flows
 - Identify rare but high-impact failure scenarios
 
-For EACH issue, provide clear, specific, actionable details. Be realistic based on the URL type.`
+For EACH issue, provide clear, specific, actionable details. Be realistic based on the URL type.${trainingBlock}`
           },
           {
             role: 'user',

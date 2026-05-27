@@ -1,0 +1,1 @@
+ALTER TABLE public.scan_issues ADD COLUMN IF NOT EXISTS feedback text;

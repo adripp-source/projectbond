@@ -24,6 +24,7 @@ interface IssueData {
   priority: string; impact: string | null; location: string | null;
   fix_dev: string | null; fix_code: string | null; fix_nocode: string | null;
   fix_content: string | null; fix_visual: string | null;
+  status?: string | null; feedback?: string | null;
 }
 
 interface PageSpeedScores {
@@ -79,8 +80,10 @@ const WebsiteAnalysis = () => {
       setSecurityScore(scanRes.data.security_score);
       const { data: issues } = await supabase.from("scan_issues").select("*").eq("scan_id", scanRes.data.id);
       if (issues) {
-        setQaIssues(issues.filter(i => ["qa", "performance", "accessibility", "content"].includes(i.category)));
-        setSecurityIssues(issues.filter(i => i.category === "security"));
+        // Hide ignored findings — user trained the model to skip these.
+        const visible = (issues as IssueData[]).filter(i => i.status !== "ignored");
+        setQaIssues(visible.filter(i => ["qa", "performance", "accessibility", "content"].includes(i.category)));
+        setSecurityIssues(visible.filter(i => i.category === "security"));
       }
     }
     const today = new Date(); today.setHours(0, 0, 0, 0);
@@ -194,6 +197,51 @@ const WebsiteAnalysis = () => {
     if (types.length === 0) types.push(issue.category === "security" ? "dev" : "code");
     return types;
   };
+
+  const handleFeedback = async (issue: IssueData, value: "good" | "bad") => {
+    const next = issue.feedback === value ? null : value;
+    // Optimistic
+    const apply = (arr: IssueData[]) => arr.map(i => i.id === issue.id ? { ...i, feedback: next } : i);
+    setQaIssues(apply); setSecurityIssues(apply);
+    const { error } = await supabase.from("scan_issues" as any).update({ feedback: next } as any).eq("id", issue.id);
+    if (error) {
+      toast.error("Could not save feedback");
+      const revert = (arr: IssueData[]) => arr.map(i => i.id === issue.id ? { ...i, feedback: issue.feedback } : i);
+      setQaIssues(revert); setSecurityIssues(revert);
+    } else {
+      toast.success(next === "good" ? "Marked useful — model will favor these" : next === "bad" ? "Marked not useful — model will avoid these" : "Feedback cleared");
+    }
+  };
+
+  const handleIgnore = async (issue: IssueData) => {
+    const ok = await confirm({
+      title: "Ignore this finding?",
+      description: "It will be hidden from your scan results. Future scans will deprioritize similar findings.",
+      confirmText: "Ignore",
+    });
+    if (!ok) return;
+    setQaIssues(prev => prev.filter(i => i.id !== issue.id));
+    setSecurityIssues(prev => prev.filter(i => i.id !== issue.id));
+    const { error } = await supabase.from("scan_issues").update({ status: "ignored" }).eq("id", issue.id);
+    if (error) { toast.error("Could not ignore"); loadData(); }
+  };
+
+  // Group QA issues by category for cleaner sectioning.
+  const categoryMeta: Record<string, { label: string; icon: typeof Play }> = {
+    qa: { label: "QA & Functionality", icon: Play },
+    performance: { label: "Performance", icon: Zap },
+    accessibility: { label: "Accessibility", icon: Accessibility },
+    content: { label: "Content", icon: Search },
+  };
+  const qaGroups = Object.entries(
+    qaIssues.reduce<Record<string, IssueData[]>>((acc, i) => {
+      const k = categoryMeta[i.category] ? i.category : "qa";
+      (acc[k] = acc[k] || []).push(i);
+      return acc;
+    }, {})
+  );
+
+
 
   if (loading) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
@@ -355,20 +403,37 @@ const WebsiteAnalysis = () => {
         </div>
       )}
 
-      {/* QA Issues */}
-      {qaIssues.length > 0 && (
-        <div className="mb-8">
-          <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
-            <Play className="w-4 h-4 text-primary" />QA Issues<span className="text-xs text-muted-foreground font-normal">({qaIssues.length})</span>
-          </h2>
-          <div className="space-y-2">
-            {qaIssues.map((issue, i) => (
-              <ActionItem key={issue.id} title={issue.title} description={issue.description} priority={issue.priority as any}
-                impact={issue.impact || ""} location={issue.location || ""} fixTypes={getFixTypes(issue)} index={i} />
-            ))}
+      {/* QA Issues — grouped by category */}
+      {qaGroups.map(([cat, group]) => {
+        const meta = categoryMeta[cat] || categoryMeta.qa;
+        const Icon = meta.icon;
+        return (
+          <div key={cat} className="mb-8">
+            <h2 className="text-sm font-semibold text-foreground mb-3 flex items-center gap-2">
+              <Icon className="w-4 h-4 text-primary" />
+              {meta.label}
+              <span className="text-xs text-muted-foreground font-normal">({group.length})</span>
+            </h2>
+            <div className="space-y-2">
+              {group.map((issue, i) => (
+                <ActionItem
+                  key={issue.id}
+                  title={issue.title}
+                  description={issue.description}
+                  priority={issue.priority as any}
+                  impact={issue.impact || ""}
+                  location={issue.location || ""}
+                  fixTypes={getFixTypes(issue)}
+                  index={i}
+                  feedback={(issue.feedback as any) || null}
+                  onFeedback={(v) => handleFeedback(issue, v)}
+                  onIgnore={() => handleIgnore(issue)}
+                />
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })}
 
       {/* Security */}
       {securityIssues.length > 0 && (
@@ -378,8 +443,19 @@ const WebsiteAnalysis = () => {
           </h2>
           <div className="space-y-2">
             {securityIssues.map((issue, i) => (
-              <ActionItem key={issue.id} title={issue.title} description={issue.description} priority={issue.priority as any}
-                impact={issue.impact || ""} location={issue.location || ""} fixTypes={getFixTypes(issue)} index={i} />
+              <ActionItem
+                key={issue.id}
+                title={issue.title}
+                description={issue.description}
+                priority={issue.priority as any}
+                impact={issue.impact || ""}
+                location={issue.location || ""}
+                fixTypes={getFixTypes(issue)}
+                index={i}
+                feedback={(issue.feedback as any) || null}
+                onFeedback={(v) => handleFeedback(issue, v)}
+                onIgnore={() => handleIgnore(issue)}
+              />
             ))}
           </div>
         </div>
