@@ -346,11 +346,11 @@ const WebsiteAnalysis = () => {
 
       {/* Safe Testing Mode */}
       {websites.length > 0 && (
-        <div className="flex items-start gap-2 p-3 rounded-lg bg-primary/5 border border-primary/20 mb-6">
-          <Eye className="w-4 h-4 text-primary flex-shrink-0 mt-0.5" />
+        <div className="flex items-start gap-2 p-3 rounded-md bg-secondary/40 border border-border mb-6">
+          <Eye className="w-4 h-4 text-muted-foreground flex-shrink-0 mt-0.5" />
           <div>
-            <p className="text-xs font-medium text-foreground">Safe Testing Mode Active</p>
-            <p className="text-[10px] text-muted-foreground">Bond will not make purchases, submit forms, or modify data unless explicitly allowed.</p>
+            <p className="text-xs font-medium text-foreground">Safe testing mode active</p>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Scans will not submit forms, complete purchases, or modify data unless explicitly allowed.</p>
           </div>
         </div>
       )}
