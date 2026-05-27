@@ -132,7 +132,7 @@ EDGE CASE GENERATION:
 - Generate realistic test cases for the most critical flows
 - Identify rare but high-impact failure scenarios
 
-For EACH issue, provide clear, specific, actionable details. Be realistic based on the URL type.`
+For EACH issue, provide clear, specific, actionable details. Be realistic based on the URL type.${trainingBlock}`
           },
           {
             role: 'user',
