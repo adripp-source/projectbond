@@ -198,6 +198,51 @@ const WebsiteAnalysis = () => {
     return types;
   };
 
+  const handleFeedback = async (issue: IssueData, value: "good" | "bad") => {
+    const next = issue.feedback === value ? null : value;
+    // Optimistic
+    const apply = (arr: IssueData[]) => arr.map(i => i.id === issue.id ? { ...i, feedback: next } : i);
+    setQaIssues(apply); setSecurityIssues(apply);
+    const { error } = await supabase.from("scan_issues" as any).update({ feedback: next } as any).eq("id", issue.id);
+    if (error) {
+      toast.error("Could not save feedback");
+      const revert = (arr: IssueData[]) => arr.map(i => i.id === issue.id ? { ...i, feedback: issue.feedback } : i);
+      setQaIssues(revert); setSecurityIssues(revert);
+    } else {
+      toast.success(next === "good" ? "Marked useful — model will favor these" : next === "bad" ? "Marked not useful — model will avoid these" : "Feedback cleared");
+    }
+  };
+
+  const handleIgnore = async (issue: IssueData) => {
+    const ok = await confirm({
+      title: "Ignore this finding?",
+      description: "It will be hidden from your scan results. Future scans will deprioritize similar findings.",
+      confirmText: "Ignore",
+    });
+    if (!ok) return;
+    setQaIssues(prev => prev.filter(i => i.id !== issue.id));
+    setSecurityIssues(prev => prev.filter(i => i.id !== issue.id));
+    const { error } = await supabase.from("scan_issues").update({ status: "ignored" }).eq("id", issue.id);
+    if (error) { toast.error("Could not ignore"); loadData(); }
+  };
+
+  // Group QA issues by category for cleaner sectioning.
+  const categoryMeta: Record<string, { label: string; icon: typeof Play }> = {
+    qa: { label: "QA & Functionality", icon: Play },
+    performance: { label: "Performance", icon: Zap },
+    accessibility: { label: "Accessibility", icon: Accessibility },
+    content: { label: "Content", icon: Search },
+  };
+  const qaGroups = Object.entries(
+    qaIssues.reduce<Record<string, IssueData[]>>((acc, i) => {
+      const k = categoryMeta[i.category] ? i.category : "qa";
+      (acc[k] = acc[k] || []).push(i);
+      return acc;
+    }, {})
+  );
+
+
+
   if (loading) {
     return <div className="p-8 flex items-center justify-center min-h-[50vh]"><Loader2 className="w-6 h-6 animate-spin text-primary" /></div>;
   }
