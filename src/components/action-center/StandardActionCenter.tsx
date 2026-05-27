@@ -45,21 +45,37 @@ const StandardActionCenter = () => {
 
   useEffect(() => {
     if (!user) return;
-    supabase
-      .from("scan_issues")
-      .select("*")
-      .eq("user_id", user.id)
-      .order("created_at", { ascending: true })
-      .then(({ data }) => {
-        if (data) {
-          // Sort by priority
-          const sorted = [...data].sort((a, b) =>
-            (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
-          );
-          setIssues(sorted);
-        }
+    (async () => {
+      // Scope to the user's most recent scan so results always reflect the latest run.
+      const { data: latestScan } = await supabase
+        .from("scans")
+        .select("id")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (!latestScan) {
+        setIssues([]);
         setLoading(false);
-      });
+        return;
+      }
+
+      const { data } = await supabase
+        .from("scan_issues")
+        .select("*")
+        .eq("user_id", user.id)
+        .eq("scan_id", latestScan.id)
+        .order("created_at", { ascending: true });
+
+      if (data) {
+        const sorted = [...data].sort((a, b) =>
+          (priorityOrder[a.priority] ?? 2) - (priorityOrder[b.priority] ?? 2)
+        );
+        setIssues(sorted);
+      }
+      setLoading(false);
+    })();
   }, [user]);
 
   const handleGenerateFix = async (issue: IssueData, targetType: string) => {

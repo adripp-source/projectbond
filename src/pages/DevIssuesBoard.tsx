@@ -82,10 +82,26 @@ const DevIssuesBoard = () => {
 
   const loadIssues = async () => {
     if (!user) return;
+    // Scope to the user's most recent scan so the board reflects the latest scan run.
+    const { data: latestScan } = await supabase
+      .from("scans")
+      .select("id")
+      .eq("user_id", user.id)
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (!latestScan) {
+      setIssues([]);
+      setLoading(false);
+      return;
+    }
+
     const { data } = await supabase
       .from("scan_issues")
       .select("*")
       .eq("user_id", user.id)
+      .eq("scan_id", latestScan.id)
       .order("created_at", { ascending: true });
     if (data) {
       const mapped = data.map(issue => ({
