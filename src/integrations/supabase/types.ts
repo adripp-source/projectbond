@@ -239,6 +239,7 @@ export type Database = {
           description: string
           evidence_score: number
           expected_result: string | null
+          feedback: string | null
           fix_code: string | null
           fix_content: string | null
           fix_dev: string | null
@@ -272,6 +273,7 @@ export type Database = {
           description: string
           evidence_score?: number
           expected_result?: string | null
+          feedback?: string | null
           fix_code?: string | null
           fix_content?: string | null
           fix_dev?: string | null
@@ -305,6 +307,7 @@ export type Database = {
           description?: string
           evidence_score?: number
           expected_result?: string | null
+          feedback?: string | null
           fix_code?: string | null
           fix_content?: string | null
           fix_dev?: string | null
