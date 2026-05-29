@@ -361,7 +361,49 @@ Produce 4-12 findings, prioritized by REAL IMPACT (functional > journey > perf >
           status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const errorText = await aiResponse.text();
+    const analysis = JSON.parse(toolCall.function.arguments);
+
+    // ---- Deterministic severity normalizer + re-weighted health_score ----
+    // Cosmetic categories can never be > low. Broken/functional categories get bumped up.
+    const COSMETIC_TITLE = /(favicon|og:image|og image|share preview|meta description length|missing footer|about page|testimonial|trusted by|social proof|pricing page)/i;
+    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|login|sign[\s-]?in|checkout|payment|contact form|api (error|fail)|cors)/i;
+    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu)/i;
+
+    if (Array.isArray(analysis.issues)) {
+      for (const it of analysis.issues) {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        if (COSMETIC_TITLE.test(t) && !FUNCTIONAL_TITLE.test(t)) it.priority = 'low';
+        if (FUNCTIONAL_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
+        if (it.category === 'broken' && it.priority !== 'critical') it.priority = 'warning';
+      }
+      // Re-weighted score: functional 50 / journey 20 / perf 15 / a11y 10 / marketing 5
+      const weightFor = (it: any): { bucket: string; weight: number } => {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        if (it.category === 'broken' || it.category === 'form' || FUNCTIONAL_TITLE.test(t)) return { bucket: 'functional', weight: 50 };
+        if (it.category === 'navigation' || it.category === 'cta' || it.category === 'clarity' || JOURNEY_TITLE.test(t)) return { bucket: 'journey', weight: 20 };
+        if (it.category === 'performance') return { bucket: 'perf', weight: 15 };
+        if (it.category === 'accessibility' || it.category === 'mobile') return { bucket: 'a11y', weight: 10 };
+        return { bucket: 'marketing', weight: 5 };
+      };
+      const sevPenalty = (p: string) => (p === 'critical' ? 1 : p === 'warning' ? 0.45 : 0.1);
+      let totalPenalty = 0;
+      const maxBucket: Record<string, number> = { functional: 50, journey: 20, perf: 15, a11y: 10, marketing: 5 };
+      const usedBucket: Record<string, number> = { functional: 0, journey: 0, perf: 0, a11y: 0, marketing: 0 };
+      for (const it of analysis.issues) {
+        const { bucket, weight } = weightFor(it);
+        const pen = weight * sevPenalty(it.priority || 'low');
+        // cap each bucket so 20 cosmetic findings can't dominate
+        const headroom = Math.max(0, maxBucket[bucket] - usedBucket[bucket]);
+        const applied = Math.min(pen, headroom);
+        usedBucket[bucket] += applied;
+        totalPenalty += applied;
+      }
+      const computed = Math.max(0, Math.min(100, Math.round(100 - totalPenalty)));
+      // Blend AI score with deterministic score, lean on deterministic (70/30)
+      const aiScore = typeof analysis.health_score === 'number' ? analysis.health_score : computed;
+      analysis.health_score = Math.round(computed * 0.7 + aiScore * 0.3);
+    }
+
       console.error('AI error:', aiResponse.status, errorText);
       throw new Error(`AI gateway error: ${aiResponse.status}`);
     }
