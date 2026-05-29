@@ -61,9 +61,10 @@ const App = () => (
               <Route path="/actions" element={<ActionCenter />} />
               <Route path="/editor" element={<VisualEditor />} />
               <Route path="/docs" element={<TechDocs />} />
+              <Route path="/flows" element={<FlowLogicView />} />
               <Route path="/ai-tester" element={<AITester />} />
-              <Route path="/docs" element={<TechDocs />} />
               <Route path="/settings" element={<SettingsPage />} />
+
             </Route>
             <Route path="*" element={<NotFound />} />
           </Routes>
