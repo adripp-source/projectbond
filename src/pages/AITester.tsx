@@ -82,7 +82,7 @@ const AITester = () => {
         .eq("status", "completed")
         .order("created_at", { ascending: false });
       const byEp: Record<string, Test | null> = {};
-    setEndpoints((eps as unknown as Endpoint[]) || []);
+      for (const t of ((ts as unknown as Test[]) || [])) {
         if (!byEp[t.endpoint_id]) byEp[t.endpoint_id] = t;
       }
       setTests(byEp);
