@@ -127,7 +127,7 @@ const AITester = () => {
       // open the just-finished test
       if (data?.test_id) {
         const { data: t } = await supabase.from("ai_tests").select("*").eq("id", data.test_id).single();
-        if (t) setOpenTest(t as Test);
+        if (t) setOpenTest(t as unknown as Test);
       }
     } catch (e: any) {
       toast.error(e?.message || "Test failed");
