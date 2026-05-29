@@ -245,50 +245,59 @@ First-impression copy (≈800 chars): ${p.ev.bodyText}`).join('\n\n---\n\n')
         messages: [
           {
             role: 'system',
-            content: `You are a CUSTOMER TESTER, not a QA engineer. You are pretending to be a real first-time visitor with no context — a busy potential customer who landed on this site cold. Your job is to find EVERYTHING that is broken, confusing, or fails to convince a customer.
+            content: `You are a PROFESSIONAL QA + CUSTOMER TESTER for real websites and apps. Your job is to find HIGH-IMPACT problems that actually stop people from using or buying — not cosmetic SEO/marketing nitpicks.
+
+PRIORITIZATION (this is the most important rule):
+Severity weighting for the report and the health_score:
+  - Functional defects (broken flows, errors, login/checkout/contact failures, dead links, 5xx, redirect loops, form silently fails, button does nothing, API errors): 50% weight
+  - User-journey blockers (no navigation, can't tell what the product is, no clear primary action, confusing IA, dead-end pages, mobile inaccessible nav): 20% weight
+  - Performance (slow load, huge payloads, blocking resources): 15% weight
+  - Accessibility (missing labels on forms, color/contrast, keyboard traps, missing alts on meaningful images): 10% weight
+  - Marketing / trust / cosmetic (favicon, og:image, missing footer, missing testimonials, missing about page, missing H1 on a one-page SaaS): 5% weight
+
+SEVERITY RULES — apply strictly:
+  - critical = the product is broken or unusable for a real user RIGHT NOW (broken login, broken checkout, 5xx, redirect loop, JS-only site that renders empty, form submit returns error, primary CTA leads to 404, contact form silently fails).
+  - warning = a real user can still use it but a meaningful share will bounce, get stuck, or distrust (no navigation/menu at all, can't tell what the product is, confusing CTA on a transactional page, mobile menu missing, no error handling on a form, slow page > 5s).
+  - low = cosmetic / SEO / nice-to-have (favicon, og:image, missing H1 on a minimal page, missing footer on a one-pager, missing testimonials, "About" page absent, meta description length).
+
+DO NOT MARK AS CRITICAL OR WARNING:
+  - Missing favicon (always low)
+  - Missing og:image / share preview (low)
+  - Missing H1 if the page is a minimal landing with clear visible product name (low)
+  - Missing footer on a one-page site (low)
+  - Missing pricing page if the product is clearly not transactional (low)
+  - Missing testimonials / about page / "trusted by" (low)
+  - Generic "no social proof" complaints (low)
+
+DO MARK AS CRITICAL / WARNING when evidence shows:
+  - Any broken link in the BROKEN LINKS list — critical if it's in the nav/primary CTA, warning otherwise.
+  - HTTP 4xx/5xx on any crawled page — critical for 5xx, warning for 4xx on linked pages.
+  - The crawl returned essentially empty body text (likely client-rendered SPA that never hydrates for crawlers/bots) — warning (real customers on slow networks/screen readers/AI agents also see nothing).
+  - A login/signup/checkout/contact form exists but has no labels, no method, no action, or fields that look broken — warning, critical if it's the primary conversion path.
+  - There is NO navigation at all on a multi-page-looking site — warning.
+  - The page does not communicate WHAT THE PRODUCT IS in the first impression copy — warning (judge from H1 + first 800 chars + CTAs).
+  - Primary CTA is missing, ambiguous ("Submit", "Click here", "Learn more" with no context), or duplicated 3+ times with different destinations — warning.
 
 You MUST ground every finding in the CRAWL EVIDENCE below. Do NOT invent issues. Do NOT generate generic best-practice checklists. If the evidence doesn't show a problem, don't raise it.
 
-You evaluate two layers:
-
-1) ACTUALLY BROKEN (objective failures from the evidence)
-   - Broken/dead links (use the BROKEN LINKS list verbatim)
-   - HTTP error pages, redirect loops, missing pages
-   - Forms with no labels, no fields, or wrong method
-   - Missing <title>, missing meta description, missing viewport, missing favicon, missing lang
-   - Missing or duplicate H1
-   - Images with no alt text (use the count from evidence)
-   - Missing OG tags (bad share previews)
-   - Mixed content / non-HTTPS
-
-2) CUSTOMER EXPERIENCE FAILURES (the hard part — judge like a human)
-   - "I don't know what this product is" → unclear value prop in first 5 seconds (judge from first-impression copy + H1 + CTAs)
-   - "I don't know what to do next" → unclear primary CTA, too many competing CTAs, weak CTA labels ("Submit", "Click here", "Learn more" with no context)
-   - "I don't trust this" → no pricing, no contact, no about, no testimonials, no social proof, no privacy/terms
-   - "I'm confused" → no visual hierarchy in headings (e.g. 0 or 3+ H1s, headings that don't tell a story), jargon, undefined acronyms
-   - "Who is this for?" → no audience signal, no use case
-   - "What does it cost?" → no pricing or pricing hidden
-   - "Is this real?" → AI-generic copy, placeholder text ("Lorem ipsum", "Your tagline here", "Company name"), stock-looking everything
-   - Navigation confusion — too many nav items, vague labels, no clear path to convert
-   - Mobile/touch issues based on viewport + CTA density
-   - Form friction — too many fields, scary fields up front, no labels
+Quality over quantity: 4-12 findings is the right range for a normal site. Only raise more if the site is genuinely broken.
 
 For EACH finding give:
-- A specific, evidence-backed title (quote the actual heading/CTA/link when possible)
-- WHY a customer would bounce or distrust because of it
+- A specific, evidence-backed title (quote the actual heading/CTA/link/URL when possible)
+- WHY a real user fails because of it (not "best practice says…")
 - A concrete fix in plain language AND a code/no-code option
 
-Be honest. If the site IS clear and trustworthy, raise FEWER issues — quality over quantity. If it's bad, raise everything you'd raise as a real customer.${trainingBlock}`
+Be honest. A site that "just works" and has a clear value prop should score 75-90 even if it lacks a favicon, testimonials, or an About page.${trainingBlock}`
           },
           {
             role: 'user',
-            content: `Customer-test this site as if you just landed on it: ${url}${company_name ? ` (Company: ${company_name})` : ''}
+            content: `Audit this site as a professional QA + customer tester: ${url}${company_name ? ` (Company: ${company_name})` : ''}
 
 CRAWL EVIDENCE (this is ground truth — do not invent beyond it):
 ${evidenceSummary}${brokenBlock}
 
-Produce 8-20 evidence-backed findings. Skew toward CUSTOMER EXPERIENCE failures (clarity, hierarchy, "what is this product", trust) more than generic QA. Every broken link in the list above MUST appear as its own finding.`
-          }
+Produce 4-12 findings, prioritized by REAL IMPACT (functional > journey > perf > a11y > marketing). Every broken link above MUST appear as its own finding. Do NOT pad the list with cosmetic SEO findings — mark those low or skip them.`
+
         ],
         tools: [{
           type: 'function',
@@ -352,7 +361,49 @@ Produce 8-20 evidence-backed findings. Skew toward CUSTOMER EXPERIENCE failures 
           status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         });
       }
-      const errorText = await aiResponse.text();
+    const analysis = JSON.parse(toolCall.function.arguments);
+
+    // ---- Deterministic severity normalizer + re-weighted health_score ----
+    // Cosmetic categories can never be > low. Broken/functional categories get bumped up.
+    const COSMETIC_TITLE = /(favicon|og:image|og image|share preview|meta description length|missing footer|about page|testimonial|trusted by|social proof|pricing page)/i;
+    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|login|sign[\s-]?in|checkout|payment|contact form|api (error|fail)|cors)/i;
+    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu)/i;
+
+    if (Array.isArray(analysis.issues)) {
+      for (const it of analysis.issues) {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        if (COSMETIC_TITLE.test(t) && !FUNCTIONAL_TITLE.test(t)) it.priority = 'low';
+        if (FUNCTIONAL_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
+        if (it.category === 'broken' && it.priority !== 'critical') it.priority = 'warning';
+      }
+      // Re-weighted score: functional 50 / journey 20 / perf 15 / a11y 10 / marketing 5
+      const weightFor = (it: any): { bucket: string; weight: number } => {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        if (it.category === 'broken' || it.category === 'form' || FUNCTIONAL_TITLE.test(t)) return { bucket: 'functional', weight: 50 };
+        if (it.category === 'navigation' || it.category === 'cta' || it.category === 'clarity' || JOURNEY_TITLE.test(t)) return { bucket: 'journey', weight: 20 };
+        if (it.category === 'performance') return { bucket: 'perf', weight: 15 };
+        if (it.category === 'accessibility' || it.category === 'mobile') return { bucket: 'a11y', weight: 10 };
+        return { bucket: 'marketing', weight: 5 };
+      };
+      const sevPenalty = (p: string) => (p === 'critical' ? 1 : p === 'warning' ? 0.45 : 0.1);
+      let totalPenalty = 0;
+      const maxBucket: Record<string, number> = { functional: 50, journey: 20, perf: 15, a11y: 10, marketing: 5 };
+      const usedBucket: Record<string, number> = { functional: 0, journey: 0, perf: 0, a11y: 0, marketing: 0 };
+      for (const it of analysis.issues) {
+        const { bucket, weight } = weightFor(it);
+        const pen = weight * sevPenalty(it.priority || 'low');
+        // cap each bucket so 20 cosmetic findings can't dominate
+        const headroom = Math.max(0, maxBucket[bucket] - usedBucket[bucket]);
+        const applied = Math.min(pen, headroom);
+        usedBucket[bucket] += applied;
+        totalPenalty += applied;
+      }
+      const computed = Math.max(0, Math.min(100, Math.round(100 - totalPenalty)));
+      // Blend AI score with deterministic score, lean on deterministic (70/30)
+      const aiScore = typeof analysis.health_score === 'number' ? analysis.health_score : computed;
+      analysis.health_score = Math.round(computed * 0.7 + aiScore * 0.3);
+    }
+
       console.error('AI error:', aiResponse.status, errorText);
       throw new Error(`AI gateway error: ${aiResponse.status}`);
     }
