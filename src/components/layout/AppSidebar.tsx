@@ -28,7 +28,9 @@ const getNavItems = (userType: string | null, companyCode: string | null) => [
   { path: "/analysis", label: "Website Analysis", icon: Globe },
   { path: "/actions", label: userType === "dev_team" ? "Dev Board" : "Action Center", icon: userType === "dev_team" ? Kanban : Target },
   { path: "/branding", label: "Branding", icon: Palette },
-  { path: "/editor", label: "Visual Editor", icon: Paintbrush },
+  { path: "/flows", label: "Flow & Logic", icon: GitBranch },
+  { path: "/ai-tester", label: "AI Tester", icon: Bot },
+
   { path: "/flows", label: "Flow & Logic", icon: GitBranch },
   { path: "/docs", label: "Tech Docs", icon: BookOpen },
   { path: "/media", label: "Media Footprint", icon: Newspaper },
