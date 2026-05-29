@@ -212,12 +212,15 @@ serve(async (req) => {
       pages.push({ url: home.finalUrl, status: home.status, ev: homeEv });
       for (const l of homeEv.links) {
         if (!l.external && !followed.has(l.href)) queue.push({ href: l.href, from: home.finalUrl });
-      }
-
-      // 3. BFS — fetch up to MAX_PAGES, discover more internal links as we go
+      // 3. BFS — fetch up to MAX_PAGES, discover more internal links as we go.
+      //    Prioritize high-value paths (login/signup/checkout/account/contact)
+      //    so importance walls are catching real failures first.
+      const HIGH_VALUE_RE = /\/(login|signin|sign-in|signup|sign-up|register|account|checkout|cart|billing|payment|pay|auth|contact|support|help|reset|forgot|password)(\/|$|\?)/i;
+      const prioritize = () => queue.sort((a, b) => (HIGH_VALUE_RE.test(b.href) ? 1 : 0) - (HIGH_VALUE_RE.test(a.href) ? 1 : 0));
+      prioritize();
       while (pages.length < MAX_PAGES && queue.length && Date.now() - startedAt < MAX_TIME_MS) {
-        // Pop next 4 in parallel
-        const batch = queue.splice(0, 4).filter(q => !followed.has(q.href));
+        // Pop next 6 in parallel
+        const batch = queue.splice(0, 6).filter(q => !followed.has(q.href));
         if (!batch.length) continue;
         for (const b of batch) followed.add(b.href);
         const results = await Promise.all(batch.map(async (b) => {
@@ -229,19 +232,20 @@ serve(async (req) => {
           if (p.status >= 400) { broken.push({ url: p.finalUrl, status: p.status, from: b.from }); continue; }
           const ev = extractCustomerEvidence(p.html, p.finalUrl);
           pages.push({ url: p.finalUrl, status: p.status, ev });
-          // Discover more internal pages
+          // Discover more internal pages — no artificial queue cap, we want everything
           for (const l of ev.links) {
-            if (!l.external && !followed.has(l.href) && queue.length < MAX_PAGES * 3) {
+            if (!l.external && !followed.has(l.href)) {
               queue.push({ href: l.href, from: p.finalUrl });
             }
           }
         }
+        prioritize();
       }
 
-      // 4. HEAD-check a wider sample of remaining links (internal + external) for dead links
+      // 4. HEAD-check the remaining link sample for dead links (wider net)
       const allLinks = new Set<string>();
       for (const p of pages) for (const l of p.ev.links) allLinks.add(l.href);
-      const sample = [...allLinks].filter(h => !followed.has(h)).slice(0, 40);
+      const sample = [...allLinks].filter(h => !followed.has(h)).slice(0, 120);
       await Promise.all(sample.map(async (href) => {
         try {
           const ctl = new AbortController();
@@ -249,6 +253,9 @@ serve(async (req) => {
           const r = await fetch(href, { method: 'HEAD', redirect: 'follow', signal: ctl.signal });
           clearTimeout(tid);
           if (r.status >= 400) broken.push({ url: href, status: r.status, from: home.finalUrl });
+        } catch { broken.push({ url: href, status: 0, from: home.finalUrl }); }
+      }));
+    }
         } catch { broken.push({ url: href, status: 0, from: home.finalUrl }); }
       }));
     }
