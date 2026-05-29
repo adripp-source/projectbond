@@ -183,36 +183,75 @@ serve(async (req) => {
       ? `\n\nUSER FEEDBACK MEMORY (use to prioritize the right findings):\nGOOD examples the user found useful — produce MORE like these:\n${goodEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}\n\nBAD / IGNORED examples the user dismissed — AVOID raising similar findings unless materially different:\n${badEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}`
       : '';
 
-    // ---- Crawl the homepage + a few internal pages to ground the analysis in evidence ----
-    const home = await safeFetchHtml(url);
+    // ---- Full-site crawl (sitemap + BFS, capped) ----
+    const MAX_PAGES = 30;
+    const MAX_TIME_MS = 45_000;
+    const startedAt = Date.now();
     const pages: { url: string; status: number; ev: ReturnType<typeof extractCustomerEvidence> }[] = [];
     const broken: { url: string; status: number; from: string }[] = [];
+
+    const home = await safeFetchHtml(url);
     if (home) {
-      const ev = extractCustomerEvidence(home.html, home.finalUrl);
-      pages.push({ url: home.finalUrl, status: home.status, ev });
+      const origin = new URL(home.finalUrl).origin;
       const followed = new Set<string>([home.finalUrl]);
-      const internal = ev.links.filter(l => !l.external).slice(0, 5).map(l => l.href);
-      for (const href of internal) {
-        if (followed.has(href)) continue;
-        followed.add(href);
-        const p = await safeFetchHtml(href);
-        if (!p) { broken.push({ url: href, status: 0, from: home.finalUrl }); continue; }
-        if (p.status >= 400) broken.push({ url: p.finalUrl, status: p.status, from: home.finalUrl });
-        pages.push({ url: p.finalUrl, status: p.status, ev: extractCustomerEvidence(p.html, p.finalUrl) });
+      const queue: { href: string; from: string }[] = [];
+
+      // 1. Seed from sitemap.xml + robots.txt
+      try {
+        const sm = await safeFetchHtml(new URL('/sitemap.xml', origin).toString());
+        if (sm) {
+          const locs = [...sm.html.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(m => m[1]).slice(0, MAX_PAGES * 2);
+          for (const u of locs) if (u.startsWith(origin) && !followed.has(u)) queue.push({ href: u, from: 'sitemap.xml' });
+        }
+      } catch { /* ignore */ }
+
+      // 2. Process homepage
+      const homeEv = extractCustomerEvidence(home.html, home.finalUrl);
+      pages.push({ url: home.finalUrl, status: home.status, ev: homeEv });
+      for (const l of homeEv.links) {
+        if (!l.external && !followed.has(l.href)) queue.push({ href: l.href, from: home.finalUrl });
       }
-      // Sample a handful of links (internal + external) to detect 404s / dead links
-      const sampleLinks = [...new Set(ev.links.map(l => l.href))].slice(0, 12);
-      await Promise.all(sampleLinks.map(async (href) => {
-        if (followed.has(href)) return;
+
+      // 3. BFS — fetch up to MAX_PAGES, discover more internal links as we go
+      while (pages.length < MAX_PAGES && queue.length && Date.now() - startedAt < MAX_TIME_MS) {
+        // Pop next 4 in parallel
+        const batch = queue.splice(0, 4).filter(q => !followed.has(q.href));
+        if (!batch.length) continue;
+        for (const b of batch) followed.add(b.href);
+        const results = await Promise.all(batch.map(async (b) => {
+          const p = await safeFetchHtml(b.href);
+          return { b, p };
+        }));
+        for (const { b, p } of results) {
+          if (!p) { broken.push({ url: b.href, status: 0, from: b.from }); continue; }
+          if (p.status >= 400) { broken.push({ url: p.finalUrl, status: p.status, from: b.from }); continue; }
+          const ev = extractCustomerEvidence(p.html, p.finalUrl);
+          pages.push({ url: p.finalUrl, status: p.status, ev });
+          // Discover more internal pages
+          for (const l of ev.links) {
+            if (!l.external && !followed.has(l.href) && queue.length < MAX_PAGES * 3) {
+              queue.push({ href: l.href, from: p.finalUrl });
+            }
+          }
+        }
+      }
+
+      // 4. HEAD-check a wider sample of remaining links (internal + external) for dead links
+      const allLinks = new Set<string>();
+      for (const p of pages) for (const l of p.ev.links) allLinks.add(l.href);
+      const sample = [...allLinks].filter(h => !followed.has(h)).slice(0, 40);
+      await Promise.all(sample.map(async (href) => {
         try {
-          const controller = new AbortController();
-          const tid = setTimeout(() => controller.abort(), 6000);
-          const r = await fetch(href, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+          const ctl = new AbortController();
+          const tid = setTimeout(() => ctl.abort(), 5000);
+          const r = await fetch(href, { method: 'HEAD', redirect: 'follow', signal: ctl.signal });
           clearTimeout(tid);
           if (r.status >= 400) broken.push({ url: href, status: r.status, from: home.finalUrl });
         } catch { broken.push({ url: href, status: 0, from: home.finalUrl }); }
       }));
     }
+
+
 
     const evidenceSummary = pages.length
       ? pages.map(p => `URL: ${p.url} (HTTP ${p.status})
