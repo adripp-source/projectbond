@@ -183,9 +183,11 @@ serve(async (req) => {
       ? `\n\nUSER FEEDBACK MEMORY (use to prioritize the right findings):\nGOOD examples the user found useful — produce MORE like these:\n${goodEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}\n\nBAD / IGNORED examples the user dismissed — AVOID raising similar findings unless materially different:\n${badEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}`
       : '';
 
-    // ---- Full-site crawl (sitemap + BFS, capped) ----
-    const MAX_PAGES = 30;
-    const MAX_TIME_MS = 45_000;
+    // ---- Full-site crawl (sitemap + BFS, effectively uncapped) ----
+    // We crawl EVERYTHING reachable within a generous time budget so we find
+    // real holes (broken login, dead checkout, crashing pages), not just the homepage.
+    const MAX_PAGES = 500;
+    const MAX_TIME_MS = 90_000;
     const startedAt = Date.now();
     const pages: { url: string; status: number; ev: ReturnType<typeof extractCustomerEvidence> }[] = [];
     const broken: { url: string; status: number; from: string }[] = [];
