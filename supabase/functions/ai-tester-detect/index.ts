@@ -241,7 +241,7 @@ serve(async (req) => {
           }
           // BFS — discover more internal links from this page
           if (pagesVisited < MAX_PAGES_PER_SITE) {
-            const linkMatches = [...page.html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)].slice(0, 60);
+            const linkMatches = [...page.html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)].slice(0, 200);
             for (const m of linkMatches) {
               try {
                 const abs = new URL(m[1], page.finalUrl).toString();
