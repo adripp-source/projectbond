@@ -407,7 +407,8 @@ Produce 8-20 evidence-backed findings. Skew toward CUSTOMER EXPERIENCE failures 
         user_id: user.id,
         title: issue.title,
         description: issue.description,
-        category: issue.category === 'ux' || issue.category === 'user_flow' || issue.category === 'edge_case' || issue.category === 'responsive' ? 'qa' : issue.category,
+        category: ['performance', 'accessibility', 'content', 'security'].includes(issue.category) ? issue.category : 'qa',
+
         priority: issue.priority,
         impact: issue.impact,
         location: issue.location,
