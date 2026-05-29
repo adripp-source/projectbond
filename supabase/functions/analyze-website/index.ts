@@ -6,6 +6,131 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
+// ---- SSRF-safe HTML crawler (free, no paid APIs) ----
+function isPrivateIp(ip: string): boolean {
+  if (!ip) return true;
+  if (ip === '::1' || ip.startsWith('fe80:') || ip.startsWith('fc') || ip.startsWith('fd')) return true;
+  const parts = ip.split('.').map(n => parseInt(n, 10));
+  if (parts.length !== 4 || parts.some(n => isNaN(n))) return false;
+  const [a, b] = parts;
+  return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
+}
+async function safeFetchHtml(rawUrl: string): Promise<{ html: string; finalUrl: string; status: number } | null> {
+  let target: URL;
+  try { target = new URL(rawUrl); } catch { return null; }
+  if (target.protocol !== 'https:' && target.protocol !== 'http:') return null;
+  const host = target.hostname.toLowerCase();
+  if (['localhost', 'metadata.google.internal'].includes(host) || host.endsWith('.local') || host.endsWith('.internal')) return null;
+  try {
+    const records = await Promise.allSettled([Deno.resolveDns(host, 'A'), Deno.resolveDns(host, 'AAAA')]);
+    for (const r of records) if (r.status === 'fulfilled') for (const ip of r.value) if (isPrivateIp(ip)) return null;
+  } catch { /* allow */ }
+  const controller = new AbortController();
+  const tid = setTimeout(() => controller.abort(), 12000);
+  try {
+    const res = await fetch(target.toString(), {
+      redirect: 'follow', signal: controller.signal,
+      headers: { 'User-Agent': 'Mozilla/5.0 ProjectBondCustomerTester/1.0' },
+    });
+    clearTimeout(tid);
+    const text = await res.text();
+    return { html: text.slice(0, 250_000), finalUrl: res.url, status: res.status };
+  } catch { clearTimeout(tid); return null; }
+}
+
+function extractCustomerEvidence(html: string, baseUrl: string) {
+  const origin = new URL(baseUrl).origin;
+  const title = (html.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1] || '').trim().slice(0, 200);
+  const description = (html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i)?.[1] || '').slice(0, 300);
+  const ogTitle = (html.match(/<meta\s+property=["']og:title["']\s+content=["']([^"']+)["']/i)?.[1] || '').slice(0, 200);
+  const ogDesc = (html.match(/<meta\s+property=["']og:description["']\s+content=["']([^"']+)["']/i)?.[1] || '').slice(0, 300);
+  const ogImage = (html.match(/<meta\s+property=["']og:image["']\s+content=["']([^"']+)["']/i)?.[1] || '');
+  const favicon = !!html.match(/<link[^>]+rel=["'][^"']*icon[^"']*["']/i);
+  const viewport = !!html.match(/<meta\s+name=["']viewport["']/i);
+  const lang = (html.match(/<html[^>]+lang=["']([^"']+)["']/i)?.[1] || '');
+
+  const headings: { tag: string; text: string }[] = [];
+  const hRe = /<(h[1-6])\b[^>]*>([\s\S]*?)<\/\1>/gi;
+  let hm: RegExpExecArray | null;
+  while ((hm = hRe.exec(html)) && headings.length < 25) {
+    const text = hm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (text) headings.push({ tag: hm[1].toLowerCase(), text: text.slice(0, 120) });
+  }
+  const h1Count = headings.filter(h => h.tag === 'h1').length;
+
+  const ctas: string[] = [];
+  const btnRe = /<(?:button|a)\b[^>]*>([\s\S]*?)<\/(?:button|a)>/gi;
+  let bm: RegExpExecArray | null;
+  while ((bm = btnRe.exec(html)) && ctas.length < 30) {
+    const t = bm[1].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim();
+    if (t && t.length > 1 && t.length < 60) ctas.push(t);
+  }
+
+  const imgs = [...html.matchAll(/<img\b([^>]*)>/gi)].slice(0, 60);
+  const imgTotal = imgs.length;
+  const imgsMissingAlt = imgs.filter(m => !/\balt=["'][^"']+["']/i.test(m[1])).length;
+
+  const forms: { method: string; action: string; fields: string[]; hasLabels: boolean }[] = [];
+  const formRe = /<form\b([^>]*)>([\s\S]*?)<\/form>/gi;
+  let fm: RegExpExecArray | null;
+  while ((fm = formRe.exec(html)) && forms.length < 8) {
+    const attrs = fm[1], body = fm[2];
+    const action = attrs.match(/action=["']([^"']+)["']/i)?.[1] || baseUrl;
+    const method = (attrs.match(/method=["']([^"']+)["']/i)?.[1] || 'get').toLowerCase();
+    const fields: string[] = [];
+    const inRe = /<(?:input|select|textarea)\b[^>]*name=["']([^"']+)["'][^>]*>/gi;
+    let im: RegExpExecArray | null;
+    while ((im = inRe.exec(body)) && fields.length < 12) fields.push(im[1]);
+    const hasLabels = /<label\b/i.test(body);
+    forms.push({ method, action, fields, hasLabels });
+  }
+
+  const links: { href: string; text: string; external: boolean }[] = [];
+  const linkRe = /<a\b[^>]*href=["']([^"']+)["'][^>]*>([\s\S]*?)<\/a>/gi;
+  const seen = new Set<string>();
+  let lm: RegExpExecArray | null;
+  while ((lm = linkRe.exec(html)) && links.length < 60) {
+    const href = lm[1].trim();
+    if (!href || href.startsWith('#') || href.startsWith('javascript:') || href.startsWith('mailto:')) continue;
+    let abs: string; try { abs = new URL(href, baseUrl).toString(); } catch { continue; }
+    if (seen.has(abs)) continue; seen.add(abs);
+    const text = lm[2].replace(/<[^>]+>/g, '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    links.push({ href: abs, text, external: !abs.startsWith(origin) });
+  }
+
+  const navText = (html.match(/<nav\b[^>]*>([\s\S]*?)<\/nav>/i)?.[1] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+  const footerText = (html.match(/<footer\b[^>]*>([\s\S]*?)<\/footer>/i)?.[1] || '').replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 400);
+
+  // First ~600 chars of visible body text (above-the-fold-ish proxy)
+  const bodyText = html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 800);
+
+  // Trust signals
+  const trust = {
+    hasPricing: /pricing|plans|cost/i.test(bodyText) || links.some(l => /pricing|plans/i.test(l.text)),
+    hasContact: /contact|support|help/i.test(bodyText) || links.some(l => /contact|support/i.test(l.text)),
+    hasAbout: /about|our story|who we are/i.test(bodyText) || links.some(l => /about/i.test(l.text)),
+    hasTestimonials: /testimonial|review|trusted by|loved by|customers say/i.test(bodyText),
+    hasPrivacy: links.some(l => /privacy|terms/i.test(l.text)),
+    hasSocialProof: /\b\d{2,}[\s,+]*\s*(customers|users|companies|teams|brands)\b/i.test(bodyText),
+  };
+
+  return {
+    title, description, ogTitle, ogDesc, ogImage, favicon, viewport, lang,
+    headings: headings.slice(0, 15), h1Count,
+    ctas: ctas.slice(0, 20),
+    imgTotal, imgsMissingAlt,
+    forms,
+    links: links.slice(0, 30),
+    navText, footerText, bodyText, trust,
+  };
+}
+
 serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response(null, { headers: corsHeaders });
 
