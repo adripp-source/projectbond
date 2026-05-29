@@ -180,51 +180,83 @@ serve(async (req) => {
     let scanned = 0;
 
     let probedPages = 0;
+    const MAX_PAGES_PER_SITE = 25;
+    const MAX_TIME_PER_SITE_MS = 30_000;
 
     for (const t of targets.slice(0, 10)) {
       let origin: URL;
       try { origin = new URL(t.url); } catch { continue; }
-      // Always probe the user-supplied URL + a handful of common AI/chat surfaces
-      const seen = new Set<string>();
-      const candidates: string[] = [];
-      candidates.push(t.url);
+      const originStr = origin.origin;
+      const startedAt = Date.now();
+      const followed = new Set<string>();
+      const queue: string[] = [];
+
+      // 1. Seed: user URL + common AI/chat probe paths
+      queue.push(t.url);
       for (const p of PROBE_PATHS) {
-        try { candidates.push(new URL(p, origin).toString()); } catch { /* ignore */ }
+        try { queue.push(new URL(p, originStr).toString()); } catch { /* ignore */ }
       }
 
-      let foundAnyForTarget = false;
-      for (const cand of candidates) {
-        if (seen.has(cand)) continue; seen.add(cand);
-        const page = await safeFetchHtml(cand);
-        if (!page) continue;
-        probedPages++;
-        const found = detectInHtml(page.html);
-        if (found.length) foundAnyForTarget = true;
-        for (const f of found) {
-          const { data: existing } = await admin
-            .from('ai_endpoints')
-            .select('id')
-            .eq('user_id', user.id)
-            .eq('source_url', page.finalUrl)
-            .eq('label', f.label)
-            .maybeSingle();
-          if (existing) continue;
-          const { data: inserted } = await admin.from('ai_endpoints').insert({
-            user_id: user.id,
-            website_id: t.website_id,
-            source_url: page.finalUrl,
-            type: f.type,
-            vendor: f.vendor,
-            label: f.label,
-            evidence: f.evidence,
-          }).select('*').single();
-          if (inserted) allFound.push(inserted);
+      // 2. Seed from sitemap.xml
+      try {
+        const sm = await safeFetchHtml(new URL('/sitemap.xml', originStr).toString());
+        if (sm) {
+          const locs = [...sm.html.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(m => m[1]).slice(0, MAX_PAGES_PER_SITE * 2);
+          for (const u of locs) if (u.startsWith(originStr)) queue.push(u);
         }
-        // If homepage already showed signals, no need to crawl every probe path
-        if (foundAnyForTarget && cand !== t.url && candidates.indexOf(cand) > 3) break;
+      } catch { /* ignore */ }
+
+      let foundAnyForTarget = false;
+      let pagesVisited = 0;
+
+      while (pagesVisited < MAX_PAGES_PER_SITE && queue.length && Date.now() - startedAt < MAX_TIME_PER_SITE_MS) {
+        const batch = queue.splice(0, 4).filter(u => !followed.has(u));
+        if (!batch.length) continue;
+        for (const u of batch) followed.add(u);
+        const results = await Promise.all(batch.map(async (u) => ({ u, page: await safeFetchHtml(u) })));
+        for (const { u, page } of results) {
+          if (!page) continue;
+          probedPages++; pagesVisited++;
+          const found = detectInHtml(page.html);
+          if (found.length) foundAnyForTarget = true;
+          for (const f of found) {
+            const { data: existing } = await admin
+              .from('ai_endpoints')
+              .select('id')
+              .eq('user_id', user.id)
+              .eq('source_url', page.finalUrl)
+              .eq('label', f.label)
+              .maybeSingle();
+            if (existing) continue;
+            const { data: inserted } = await admin.from('ai_endpoints').insert({
+              user_id: user.id,
+              website_id: t.website_id,
+              source_url: page.finalUrl,
+              type: f.type,
+              vendor: f.vendor,
+              label: f.label,
+              evidence: f.evidence,
+            }).select('*').single();
+            if (inserted) allFound.push(inserted);
+          }
+          // BFS — discover more internal links from this page
+          if (pagesVisited < MAX_PAGES_PER_SITE) {
+            const linkMatches = [...page.html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)].slice(0, 60);
+            for (const m of linkMatches) {
+              try {
+                const abs = new URL(m[1], page.finalUrl).toString();
+                if (abs.startsWith(originStr) && !followed.has(abs) && queue.length < MAX_PAGES_PER_SITE * 3) {
+                  queue.push(abs);
+                }
+              } catch { /* ignore */ }
+            }
+          }
+        }
       }
       if (foundAnyForTarget) scanned++;
     }
+
+
 
     const noneFoundHint = allFound.length === 0
       ? 'No AI chatbots or AI inputs were detected on the crawled pages. Many widgets are loaded after JS execution — if you know the URL of a chatbot or AI page on your site, paste it directly to test it.'
