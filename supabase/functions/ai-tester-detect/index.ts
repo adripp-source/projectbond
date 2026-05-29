@@ -179,38 +179,61 @@ serve(async (req) => {
     const allFound: any[] = [];
     let scanned = 0;
 
-    for (const t of targets.slice(0, 10)) {
-      const page = await safeFetchHtml(t.url);
-      if (!page) continue;
-      scanned++;
-      const found = detectInHtml(page.html);
-      for (const f of found) {
-        // Upsert: if same user+source_url+vendor+label exists, skip
-        const { data: existing } = await admin
-          .from('ai_endpoints')
-          .select('id')
-          .eq('user_id', user.id)
-          .eq('source_url', page.finalUrl)
-          .eq('label', f.label)
-          .maybeSingle();
-        if (existing) continue;
+    let probedPages = 0;
 
-        const { data: inserted } = await admin.from('ai_endpoints').insert({
-          user_id: user.id,
-          website_id: t.website_id,
-          source_url: page.finalUrl,
-          type: f.type,
-          vendor: f.vendor,
-          label: f.label,
-          evidence: f.evidence,
-        }).select('*').single();
-        if (inserted) allFound.push(inserted);
+    for (const t of targets.slice(0, 10)) {
+      let origin: URL;
+      try { origin = new URL(t.url); } catch { continue; }
+      // Always probe the user-supplied URL + a handful of common AI/chat surfaces
+      const seen = new Set<string>();
+      const candidates: string[] = [];
+      candidates.push(t.url);
+      for (const p of PROBE_PATHS) {
+        try { candidates.push(new URL(p, origin).toString()); } catch { /* ignore */ }
       }
+
+      let foundAnyForTarget = false;
+      for (const cand of candidates) {
+        if (seen.has(cand)) continue; seen.add(cand);
+        const page = await safeFetchHtml(cand);
+        if (!page) continue;
+        probedPages++;
+        const found = detectInHtml(page.html);
+        if (found.length) foundAnyForTarget = true;
+        for (const f of found) {
+          const { data: existing } = await admin
+            .from('ai_endpoints')
+            .select('id')
+            .eq('user_id', user.id)
+            .eq('source_url', page.finalUrl)
+            .eq('label', f.label)
+            .maybeSingle();
+          if (existing) continue;
+          const { data: inserted } = await admin.from('ai_endpoints').insert({
+            user_id: user.id,
+            website_id: t.website_id,
+            source_url: page.finalUrl,
+            type: f.type,
+            vendor: f.vendor,
+            label: f.label,
+            evidence: f.evidence,
+          }).select('*').single();
+          if (inserted) allFound.push(inserted);
+        }
+        // If homepage already showed signals, no need to crawl every probe path
+        if (foundAnyForTarget && cand !== t.url && candidates.indexOf(cand) > 3) break;
+      }
+      if (foundAnyForTarget) scanned++;
     }
 
-    return new Response(JSON.stringify({ detected: allFound, scanned, total_targets: targets.length }), {
+    const noneFoundHint = allFound.length === 0
+      ? 'No AI chatbots or AI inputs were detected on the crawled pages. Many widgets are loaded after JS execution — if you know the URL of a chatbot or AI page on your site, paste it directly to test it.'
+      : null;
+
+    return new Response(JSON.stringify({ detected: allFound, scanned, probed_pages: probedPages, total_targets: targets.length, hint: noneFoundHint }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
+
   } catch (e) {
     console.error('ai-tester-detect error:', e);
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : 'Unknown error' }), {
