@@ -341,60 +341,6 @@ Produce 8-20 evidence-backed findings. Skew toward CUSTOMER EXPERIENCE failures 
       }),
     });
 
-        ],
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'website_analysis',
-            description: 'Return comprehensive QA + security analysis',
-            parameters: {
-              type: 'object',
-              properties: {
-                health_score: { type: 'integer', description: 'Overall health 0-100 (weighted: functional 25%, UX 20%, content 15%, accessibility 15%, responsive 10%, performance 15%)' },
-                security_score: { type: 'integer', description: 'Security score 0-100' },
-                sentiment_score: { type: 'integer', description: 'Brand/user sentiment 0-100' },
-                ai_summary: { type: 'string', description: '3-4 sentence executive summary with verdict: good/needs improvement/critical. Include top priority and estimated impact.' },
-                brand_analysis: {
-                  type: 'object',
-                  properties: {
-                    tone: { type: 'string' },
-                    positioning: { type: 'string' },
-                    customer_expectations: { type: 'string' },
-                    differentiator: { type: 'string' }
-                  },
-                  required: ['tone', 'positioning', 'customer_expectations', 'differentiator']
-                },
-                issues: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      title: { type: 'string', description: 'Clear, concise issue title' },
-                      description: { type: 'string', description: 'Detailed description of the problem and why it matters' },
-                      category: { type: 'string', enum: ['qa', 'security', 'performance', 'content', 'accessibility', 'responsive', 'ux', 'user_flow', 'edge_case'] },
-                      priority: { type: 'string', enum: ['critical', 'warning', 'low'] },
-                      impact: { type: 'string', description: 'Business impact: revenue/trust/UX/conversion effect' },
-                      location: { type: 'string', description: 'Specific page, component, or element affected' },
-                      fix_dev: { type: 'string', description: 'Technical fix for developers with specific steps' },
-                      fix_code: { type: 'string', description: 'Ready-to-use code snippet (HTML/CSS/JS/React)' },
-                      fix_nocode: { type: 'string', description: 'Step-by-step for non-developers using website builders' },
-                      fix_content: { type: 'string', description: 'Content/messaging fix with example copy' },
-                      fix_visual: { type: 'string', description: 'Visual/UI design suggestion with specifics' },
-                      test_case: { type: 'string', description: 'Human-readable test case to verify the issue' },
-                      edge_cases: { type: 'string', description: 'Related edge cases to also test' }
-                    },
-                    required: ['title', 'description', 'category', 'priority', 'impact', 'location']
-                  }
-                }
-              },
-              required: ['health_score', 'security_score', 'sentiment_score', 'ai_summary', 'brand_analysis', 'issues']
-            }
-          }
-        }],
-        tool_choice: { type: 'function', function: { name: 'website_analysis' } }
-      }),
-    });
-
     if (!aiResponse.ok) {
       if (aiResponse.status === 429) {
         return new Response(JSON.stringify({ error: 'Rate limited, please try again later' }), {
