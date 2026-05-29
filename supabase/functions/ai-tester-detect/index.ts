@@ -245,7 +245,7 @@ serve(async (req) => {
             for (const m of linkMatches) {
               try {
                 const abs = new URL(m[1], page.finalUrl).toString();
-                if (abs.startsWith(originStr) && !followed.has(abs) && queue.length < MAX_PAGES_PER_SITE * 3) {
+                if (abs.startsWith(originStr) && !followed.has(abs)) {
                   queue.push(abs);
                 }
               } catch { /* ignore */ }
