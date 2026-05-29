@@ -14,6 +14,153 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_endpoints: {
+        Row: {
+          api_endpoint: string | null
+          created_at: string
+          detected_at: string
+          evidence: string | null
+          id: string
+          label: string
+          last_tested_at: string | null
+          request_template: Json | null
+          source_url: string
+          status: string
+          type: string
+          user_id: string
+          vendor: string | null
+          website_id: string | null
+        }
+        Insert: {
+          api_endpoint?: string | null
+          created_at?: string
+          detected_at?: string
+          evidence?: string | null
+          id?: string
+          label: string
+          last_tested_at?: string | null
+          request_template?: Json | null
+          source_url: string
+          status?: string
+          type?: string
+          user_id: string
+          vendor?: string | null
+          website_id?: string | null
+        }
+        Update: {
+          api_endpoint?: string | null
+          created_at?: string
+          detected_at?: string
+          evidence?: string | null
+          id?: string
+          label?: string
+          last_tested_at?: string | null
+          request_template?: Json | null
+          source_url?: string
+          status?: string
+          type?: string
+          user_id?: string
+          vendor?: string | null
+          website_id?: string | null
+        }
+        Relationships: []
+      }
+      ai_test_prompts: {
+        Row: {
+          category: string
+          created_at: string
+          expected_behavior: string | null
+          id: string
+          issue: string | null
+          prompt: string
+          response: string | null
+          score: number | null
+          test_id: string
+          user_id: string
+          verdict: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          expected_behavior?: string | null
+          id?: string
+          issue?: string | null
+          prompt: string
+          response?: string | null
+          score?: number | null
+          test_id: string
+          user_id: string
+          verdict?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          expected_behavior?: string | null
+          id?: string
+          issue?: string | null
+          prompt?: string
+          response?: string | null
+          score?: number | null
+          test_id?: string
+          user_id?: string
+          verdict?: string | null
+        }
+        Relationships: []
+      }
+      ai_tests: {
+        Row: {
+          completed_at: string | null
+          consistency_score: number | null
+          created_at: string
+          endpoint_id: string
+          error_message: string | null
+          fix_suggestions: Json | null
+          hallucination_rate: number | null
+          id: string
+          improved_prompt: string | null
+          overall_score: number | null
+          prompt_limit: number
+          refusal_quality: number | null
+          status: string
+          summary: string | null
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          consistency_score?: number | null
+          created_at?: string
+          endpoint_id: string
+          error_message?: string | null
+          fix_suggestions?: Json | null
+          hallucination_rate?: number | null
+          id?: string
+          improved_prompt?: string | null
+          overall_score?: number | null
+          prompt_limit?: number
+          refusal_quality?: number | null
+          status?: string
+          summary?: string | null
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          consistency_score?: number | null
+          created_at?: string
+          endpoint_id?: string
+          error_message?: string | null
+          fix_suggestions?: Json | null
+          hallucination_rate?: number | null
+          id?: string
+          improved_prompt?: string | null
+          overall_score?: number | null
+          prompt_limit?: number
+          refusal_quality?: number | null
+          status?: string
+          summary?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       alerts: {
         Row: {
           category: string | null
