@@ -180,8 +180,8 @@ serve(async (req) => {
     let scanned = 0;
 
     let probedPages = 0;
-    const MAX_PAGES_PER_SITE = 25;
-    const MAX_TIME_PER_SITE_MS = 30_000;
+    const MAX_PAGES_PER_SITE = 300;
+    const MAX_TIME_PER_SITE_MS = 60_000;
 
     for (const t of targets.slice(0, 10)) {
       let origin: URL;
@@ -241,11 +241,11 @@ serve(async (req) => {
           }
           // BFS — discover more internal links from this page
           if (pagesVisited < MAX_PAGES_PER_SITE) {
-            const linkMatches = [...page.html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)].slice(0, 60);
+            const linkMatches = [...page.html.matchAll(/<a\b[^>]*href=["']([^"']+)["']/gi)].slice(0, 200);
             for (const m of linkMatches) {
               try {
                 const abs = new URL(m[1], page.finalUrl).toString();
-                if (abs.startsWith(originStr) && !followed.has(abs) && queue.length < MAX_PAGES_PER_SITE * 3) {
+                if (abs.startsWith(originStr) && !followed.has(abs)) {
                   queue.push(abs);
                 }
               } catch { /* ignore */ }

@@ -183,9 +183,11 @@ serve(async (req) => {
       ? `\n\nUSER FEEDBACK MEMORY (use to prioritize the right findings):\nGOOD examples the user found useful — produce MORE like these:\n${goodEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}\n\nBAD / IGNORED examples the user dismissed — AVOID raising similar findings unless materially different:\n${badEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}`
       : '';
 
-    // ---- Full-site crawl (sitemap + BFS, capped) ----
-    const MAX_PAGES = 30;
-    const MAX_TIME_MS = 45_000;
+    // ---- Full-site crawl (sitemap + BFS, effectively uncapped) ----
+    // We crawl EVERYTHING reachable within a generous time budget so we find
+    // real holes (broken login, dead checkout, crashing pages), not just the homepage.
+    const MAX_PAGES = 500;
+    const MAX_TIME_MS = 90_000;
     const startedAt = Date.now();
     const pages: { url: string; status: number; ev: ReturnType<typeof extractCustomerEvidence> }[] = [];
     const broken: { url: string; status: number; from: string }[] = [];
@@ -210,12 +212,15 @@ serve(async (req) => {
       pages.push({ url: home.finalUrl, status: home.status, ev: homeEv });
       for (const l of homeEv.links) {
         if (!l.external && !followed.has(l.href)) queue.push({ href: l.href, from: home.finalUrl });
-      }
-
-      // 3. BFS — fetch up to MAX_PAGES, discover more internal links as we go
+      // 3. BFS — fetch up to MAX_PAGES, discover more internal links as we go.
+      //    Prioritize high-value paths (login/signup/checkout/account/contact)
+      //    so importance walls are catching real failures first.
+      const HIGH_VALUE_RE = /\/(login|signin|sign-in|signup|sign-up|register|account|checkout|cart|billing|payment|pay|auth|contact|support|help|reset|forgot|password)(\/|$|\?)/i;
+      const prioritize = () => queue.sort((a, b) => (HIGH_VALUE_RE.test(b.href) ? 1 : 0) - (HIGH_VALUE_RE.test(a.href) ? 1 : 0));
+      prioritize();
       while (pages.length < MAX_PAGES && queue.length && Date.now() - startedAt < MAX_TIME_MS) {
-        // Pop next 4 in parallel
-        const batch = queue.splice(0, 4).filter(q => !followed.has(q.href));
+        // Pop next 6 in parallel
+        const batch = queue.splice(0, 6).filter(q => !followed.has(q.href));
         if (!batch.length) continue;
         for (const b of batch) followed.add(b.href);
         const results = await Promise.all(batch.map(async (b) => {
@@ -227,19 +232,20 @@ serve(async (req) => {
           if (p.status >= 400) { broken.push({ url: p.finalUrl, status: p.status, from: b.from }); continue; }
           const ev = extractCustomerEvidence(p.html, p.finalUrl);
           pages.push({ url: p.finalUrl, status: p.status, ev });
-          // Discover more internal pages
+          // Discover more internal pages — no artificial queue cap, we want everything
           for (const l of ev.links) {
-            if (!l.external && !followed.has(l.href) && queue.length < MAX_PAGES * 3) {
+            if (!l.external && !followed.has(l.href)) {
               queue.push({ href: l.href, from: p.finalUrl });
             }
           }
         }
+        prioritize();
       }
 
-      // 4. HEAD-check a wider sample of remaining links (internal + external) for dead links
+      // 4. HEAD-check the remaining link sample for dead links (wider net)
       const allLinks = new Set<string>();
       for (const p of pages) for (const l of p.ev.links) allLinks.add(l.href);
-      const sample = [...allLinks].filter(h => !followed.has(h)).slice(0, 40);
+      const sample = [...allLinks].filter(h => !followed.has(h)).slice(0, 120);
       await Promise.all(sample.map(async (href) => {
         try {
           const ctl = new AbortController();
@@ -247,6 +253,9 @@ serve(async (req) => {
           const r = await fetch(href, { method: 'HEAD', redirect: 'follow', signal: ctl.signal });
           clearTimeout(tid);
           if (r.status >= 400) broken.push({ url: href, status: r.status, from: home.finalUrl });
+        } catch { broken.push({ url: href, status: 0, from: home.finalUrl }); }
+      }));
+    }
         } catch { broken.push({ url: href, status: 0, from: home.finalUrl }); }
       }));
     }
@@ -275,49 +284,58 @@ First-impression copy (≈800 chars): ${p.ev.bodyText}`).join('\n\n---\n\n')
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash',
-        messages: [
-          {
-            role: 'system',
             content: `You are a PROFESSIONAL QA + CUSTOMER TESTER for real websites and apps. Your job is to find HIGH-IMPACT problems that actually stop people from using or buying — not cosmetic SEO/marketing nitpicks.
+
+TOP PRIORITY — LOGIN, AUTH AND CRASHES:
+  - ANY problem with login, signup, password reset, OAuth, account access, or session is ALWAYS critical. Surface it first.
+  - ANY page that returns 5xx, redirect loops, hangs, empty body, or "click this and the site crashes" behavior is ALWAYS critical.
+  - ANY broken primary conversion flow (checkout, payment, contact, demo request) is ALWAYS critical.
 
 PRIORITIZATION (this is the most important rule):
 Severity weighting for the report and the health_score:
-  - Functional defects (broken flows, errors, login/checkout/contact failures, dead links, 5xx, redirect loops, form silently fails, button does nothing, API errors): 50% weight
-  - User-journey blockers (no navigation, can't tell what the product is, no clear primary action, confusing IA, dead-end pages, mobile inaccessible nav): 20% weight
-  - Performance (slow load, huge payloads, blocking resources): 15% weight
-  - Accessibility (missing labels on forms, color/contrast, keyboard traps, missing alts on meaningful images): 10% weight
-  - Marketing / trust / cosmetic (favicon, og:image, missing footer, missing testimonials, missing about page, missing H1 on a one-page SaaS): 5% weight
+  - Functional defects (broken login, broken flows, crashes, errors, dead links, 5xx, redirect loops, silent form failures, API errors): 55% weight
+  - User-journey blockers (no navigation, can't tell what the product is, no clear primary action, confusing IA, dead-end pages, mobile inaccessible nav, "confusing edit" patterns): 25% weight
+  - Performance (slow load, huge payloads, blocking resources): 10% weight
+  - Accessibility (missing labels on forms, color/contrast, keyboard traps, missing alts on meaningful images): 7% weight
+  - Marketing / trust / cosmetic (missing footer on a one-pager, missing testimonials, missing about page, missing H1 on a one-page SaaS): 3% weight
+  - Favicon, og:image, share preview: NEVER include as findings. Skip them entirely.
 
-SEVERITY RULES — apply strictly:
-  - critical = the product is broken or unusable for a real user RIGHT NOW (broken login, broken checkout, 5xx, redirect loop, JS-only site that renders empty, form submit returns error, primary CTA leads to 404, contact form silently fails).
-  - warning = a real user can still use it but a meaningful share will bounce, get stuck, or distrust (no navigation/menu at all, can't tell what the product is, confusing CTA on a transactional page, mobile menu missing, no error handling on a form, slow page > 5s).
-  - low = cosmetic / SEO / nice-to-have (favicon, og:image, missing H1 on a minimal page, missing footer on a one-pager, missing testimonials, "About" page absent, meta description length).
+IMPORTANCE WALLS — apply strictly:
+  - critical = the product is broken or unusable for a real user RIGHT NOW (login fails, checkout fails, 5xx, redirect loop, JS-only site that renders empty, form returns error, primary CTA leads to 404, contact form silently fails, clicking a real CTA crashes the page).
+  - warning = a real user can still use it but a meaningful share will bounce, get stuck, or distrust (no navigation/menu at all, can't tell what the product is, confusing CTA on a transactional page, mobile menu missing, no error handling on a form, slow page > 5s, confusing edit/save flow).
+  - low = cosmetic / SEO / nice-to-have. KEEP TO A MINIMUM. Do not pad the report with low-priority items — at most 2 low findings, and only if they're genuinely worth fixing.
 
-DO NOT MARK AS CRITICAL OR WARNING:
-  - Missing favicon (always low)
-  - Missing og:image / share preview (low)
-  - Missing H1 if the page is a minimal landing with clear visible product name (low)
-  - Missing footer on a one-page site (low)
-  - Missing pricing page if the product is clearly not transactional (low)
-  - Missing testimonials / about page / "trusted by" (low)
-  - Generic "no social proof" complaints (low)
+NEVER RAISE THESE (they confuse the user and dilute real findings):
+  - Missing favicon
+  - Missing og:image / share preview
+  - Missing H1 if the page already shows a visible product name
+  - Missing footer on a one-page site
+  - Missing pricing page if the product is clearly not transactional
+  - Missing testimonials / about page / "trusted by"
+  - Generic "no social proof" complaints
+  - Meta description length
 
-DO MARK AS CRITICAL / WARNING when evidence shows:
-  - Any broken link in the BROKEN LINKS list — critical if it's in the nav/primary CTA, warning otherwise.
+ALWAYS RAISE (critical / warning) when evidence shows:
+  - Any login/signup/auth issue — critical.
+  - Any broken link in the BROKEN LINKS list — critical if it's in nav/primary CTA/auth flow, warning otherwise.
   - HTTP 4xx/5xx on any crawled page — critical for 5xx, warning for 4xx on linked pages.
-  - The crawl returned essentially empty body text (likely client-rendered SPA that never hydrates for crawlers/bots) — warning (real customers on slow networks/screen readers/AI agents also see nothing).
-  - A login/signup/checkout/contact form exists but has no labels, no method, no action, or fields that look broken — warning, critical if it's the primary conversion path.
+  - The crawl returned essentially empty body text on a key page — warning (real customers, screen readers, AI agents also see nothing).
+  - A login/signup/checkout/contact form exists but has no labels, no method, no action, no error handling, or broken-looking fields — critical if it's the primary conversion path, warning otherwise.
   - There is NO navigation at all on a multi-page-looking site — warning.
-  - The page does not communicate WHAT THE PRODUCT IS in the first impression copy — warning (judge from H1 + first 800 chars + CTAs).
+  - The page does not communicate WHAT THE PRODUCT IS in the first impression copy — warning.
   - Primary CTA is missing, ambiguous ("Submit", "Click here", "Learn more" with no context), or duplicated 3+ times with different destinations — warning.
+  - Edit/save/account flows that look confusing or destructive without confirmation — warning.
 
-You MUST ground every finding in the CRAWL EVIDENCE below. Do NOT invent issues. Do NOT generate generic best-practice checklists. If the evidence doesn't show a problem, don't raise it.
+You MUST ground every finding in the CRAWL EVIDENCE below. Do NOT invent issues. Do NOT generate generic best-practice checklists.
+
+Quality over quantity: aim for 3-8 findings. Only raise more if the site is genuinely broken. ORDER findings by importance: every critical first, then warnings, then (at most 2) low.
+
+For EACH finding give:
+- A specific, evidence-backed title (quote the actual heading/CTA/link/URL when possible)
+- WHY a real user fails because of it (not "best practice says…")
+- A concrete fix in plain language AND a code/no-code option
+
+Be honest. A site that "just works" and has a clear value prop and working login should score 80-95 even if it lacks testimonials or an About page.${trainingBlock}`
 
 Quality over quantity: 4-12 findings is the right range for a normal site. Only raise more if the site is genuinely broken.
 
@@ -397,21 +415,56 @@ Produce 4-12 findings, prioritized by REAL IMPACT (functional > journey > perf >
       }
       if (aiResponse.status === 402) {
         return new Response(JSON.stringify({ error: 'AI credits exhausted. Add funds in Settings > Workspace > Usage.' }), {
-          status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    const analysis = JSON.parse(toolCall.function.arguments);
-
     // ---- Deterministic severity normalizer + re-weighted health_score ----
-    // Cosmetic categories can never be > low. Broken/functional categories get bumped up.
-    const COSMETIC_TITLE = /(favicon|og:image|og image|share preview|meta description length|missing footer|about page|testimonial|trusted by|social proof|pricing page)/i;
-    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|login|sign[\s-]?in|checkout|payment|contact form|api (error|fail)|cors)/i;
-    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu)/i;
+    // Cosmetic items get dropped entirely. Login/crash/auth always critical.
+    const COSMETIC_DROP = /(favicon|og:image|og image|share preview|meta description length)/i;
+    const COSMETIC_TITLE = /(missing footer|about page|testimonial|trusted by|social proof|pricing page)/i;
+    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|crash|hangs?|api (error|fail)|cors)/i;
+    const AUTH_TITLE = /(login|log[- ]?in|sign[- ]?in|sign[- ]?up|register|password|reset|forgot|oauth|sso|account access|session|authent)/i;
+    const PAYMENT_TITLE = /(checkout|payment|billing|cart|purchase|stripe|paddle)/i;
+    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu|confusing (edit|save|flow))/i;
 
     if (Array.isArray(analysis.issues)) {
+      // Drop pure-cosmetic noise the user explicitly does not want
+      analysis.issues = analysis.issues.filter((it: any) => {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        return !COSMETIC_DROP.test(t);
+      });
       for (const it of analysis.issues) {
         const t = `${it.title || ''} ${it.description || ''}`;
-        if (COSMETIC_TITLE.test(t) && !FUNCTIONAL_TITLE.test(t)) it.priority = 'low';
+        if (AUTH_TITLE.test(t) || PAYMENT_TITLE.test(t)) it.priority = 'critical';
+        else if (FUNCTIONAL_TITLE.test(t) && it.priority !== 'critical') it.priority = 'critical';
+        else if (JOURNEY_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
+        else if (COSMETIC_TITLE.test(t)) it.priority = 'low';
+        if (it.category === 'broken' && it.priority === 'low') it.priority = 'warning';
+      }
+      // Sort by priority so the UI shows the importance wall top-down
+      const rank: Record<string, number> = { critical: 0, warning: 1, low: 2 };
+      analysis.issues.sort((a: any, b: any) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3));
+      // Cap low-priority findings at 2 to keep the report focused
+      let lowKept = 0;
+      analysis.issues = analysis.issues.filter((it: any) => {
+        if (it.priority !== 'low') return true;
+        lowKept++;
+        return lowKept <= 2;
+      });
+      // Re-weighted score: functional 55 / journey 25 / perf 10 / a11y 7 / marketing 3
+      const weightFor = (it: any): { bucket: string; weight: number } => {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        if (AUTH_TITLE.test(t) || PAYMENT_TITLE.test(t)) return { bucket: 'functional', weight: 55 };
+        if (it.category === 'broken' || it.category === 'form' || FUNCTIONAL_TITLE.test(t)) return { bucket: 'functional', weight: 55 };
+        if (it.category === 'navigation' || it.category === 'cta' || it.category === 'clarity' || JOURNEY_TITLE.test(t)) return { bucket: 'journey', weight: 25 };
+        if (it.category === 'performance') return { bucket: 'perf', weight: 10 };
+        if (it.category === 'accessibility' || it.category === 'mobile') return { bucket: 'a11y', weight: 7 };
+        return { bucket: 'marketing', weight: 3 };
+      };
+      const sevPenalty = (p: string) => (p === 'critical' ? 1 : p === 'warning' ? 0.45 : 0.1);
+      let totalPenalty = 0;
+      const maxBucket: Record<string, number> = { functional: 55, journey: 25, perf: 10, a11y: 7, marketing: 3 };
+      const usedBucket: Record<string, number> = { functional: 0, journey: 0, perf: 0, a11y: 0, marketing: 0 };
+      for (const it of analysis.issues) {
+        const { bucket, weight } = weightFor(it);
+        const pen = weight * sevPenalty(it.priority || 'low');
         if (FUNCTIONAL_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
         if (it.category === 'broken' && it.priority !== 'critical') it.priority = 'warning';
       }
