@@ -20,6 +20,7 @@ import FlowLogicView from "./pages/FlowLogicView";
 import SettingsPage from "./pages/SettingsPage";
 import TechDocs from "./pages/TechDocs";
 import NotFound from "./pages/NotFound";
+import AITester from "./pages/AITester";
 import ForgotPassword from "./pages/ForgotPassword";
 import ResetPassword from "./pages/ResetPassword";
 
