@@ -183,6 +183,56 @@ serve(async (req) => {
       ? `\n\nUSER FEEDBACK MEMORY (use to prioritize the right findings):\nGOOD examples the user found useful — produce MORE like these:\n${goodEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}\n\nBAD / IGNORED examples the user dismissed — AVOID raising similar findings unless materially different:\n${badEx.map(r => `- [${r.category}] ${r.title}`).join('\n') || '(none yet)'}`
       : '';
 
+    // ---- Crawl the homepage + a few internal pages to ground the analysis in evidence ----
+    const home = await safeFetchHtml(url);
+    const pages: { url: string; status: number; ev: ReturnType<typeof extractCustomerEvidence> }[] = [];
+    const broken: { url: string; status: number; from: string }[] = [];
+    if (home) {
+      const ev = extractCustomerEvidence(home.html, home.finalUrl);
+      pages.push({ url: home.finalUrl, status: home.status, ev });
+      const followed = new Set<string>([home.finalUrl]);
+      const internal = ev.links.filter(l => !l.external).slice(0, 5).map(l => l.href);
+      for (const href of internal) {
+        if (followed.has(href)) continue;
+        followed.add(href);
+        const p = await safeFetchHtml(href);
+        if (!p) { broken.push({ url: href, status: 0, from: home.finalUrl }); continue; }
+        if (p.status >= 400) broken.push({ url: p.finalUrl, status: p.status, from: home.finalUrl });
+        pages.push({ url: p.finalUrl, status: p.status, ev: extractCustomerEvidence(p.html, p.finalUrl) });
+      }
+      // Sample a handful of links (internal + external) to detect 404s / dead links
+      const sampleLinks = [...new Set(ev.links.map(l => l.href))].slice(0, 12);
+      await Promise.all(sampleLinks.map(async (href) => {
+        if (followed.has(href)) return;
+        try {
+          const controller = new AbortController();
+          const tid = setTimeout(() => controller.abort(), 6000);
+          const r = await fetch(href, { method: 'HEAD', redirect: 'follow', signal: controller.signal });
+          clearTimeout(tid);
+          if (r.status >= 400) broken.push({ url: href, status: r.status, from: home.finalUrl });
+        } catch { broken.push({ url: href, status: 0, from: home.finalUrl }); }
+      }));
+    }
+
+    const evidenceSummary = pages.length
+      ? pages.map(p => `URL: ${p.url} (HTTP ${p.status})
+Title: ${p.ev.title || '(MISSING)'}
+Meta description: ${p.ev.description || '(MISSING)'}
+OG title/desc/image: ${p.ev.ogTitle ? 'yes' : 'NO'} / ${p.ev.ogDesc ? 'yes' : 'NO'} / ${p.ev.ogImage ? 'yes' : 'NO'}
+Favicon: ${p.ev.favicon ? 'yes' : 'NO'} | viewport meta: ${p.ev.viewport ? 'yes' : 'NO'} | lang: ${p.ev.lang || 'NO'}
+H1 count: ${p.ev.h1Count} | Headings: ${p.ev.headings.map(h => `${h.tag}:"${h.text}"`).join(' | ')}
+CTAs found (${p.ev.ctas.length}): ${p.ev.ctas.slice(0, 15).join(' | ') || '(NONE)'}
+Images: ${p.ev.imgTotal} total, ${p.ev.imgsMissingAlt} missing alt
+Forms: ${p.ev.forms.map(f => `[${f.method.toUpperCase()} ${f.action} fields=${f.fields.join(',')} labels=${f.hasLabels}]`).join(' ') || 'none'}
+Nav text: ${p.ev.navText || '(none)'}
+Footer text: ${p.ev.footerText || '(none)'}
+Trust signals: pricing=${p.ev.trust.hasPricing} contact=${p.ev.trust.hasContact} about=${p.ev.trust.hasAbout} testimonials=${p.ev.trust.hasTestimonials} privacy/terms=${p.ev.trust.hasPrivacy} socialProof=${p.ev.trust.hasSocialProof}
+First-impression copy (≈800 chars): ${p.ev.bodyText}`).join('\n\n---\n\n')
+      : `(Site could not be crawled at ${url}. Reason about it from URL only and flag the crawl failure as a critical issue.)`;
+
+    const brokenBlock = broken.length
+      ? `\n\nBROKEN / DEAD LINKS DETECTED (these are real findings, raise each one):\n${broken.slice(0, 15).map(b => `- ${b.url} → HTTP ${b.status || 'unreachable'} (linked from ${b.from})`).join('\n')}`
+      : '';
 
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -191,90 +241,106 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite',
+        model: 'google/gemini-2.5-flash',
         messages: [
           {
             role: 'system',
-            content: `You are an expert QA team lead + security analyst. You perform deep, production-grade website analysis.
+            content: `You are a CUSTOMER TESTER, not a QA engineer. You are pretending to be a real first-time visitor with no context — a busy potential customer who landed on this site cold. Your job is to find EVERYTHING that is broken, confusing, or fails to convince a customer.
 
-Your analysis MUST cover ALL of the following categories:
+You MUST ground every finding in the CRAWL EVIDENCE below. Do NOT invent issues. Do NOT generate generic best-practice checklists. If the evidence doesn't show a problem, don't raise it.
 
-FUNCTIONAL TESTING:
-- Buttons, links, forms — do they work?
-- Navigation flows — are they logical?
-- Edge cases: empty states, invalid input, multi-step flows
-- Error handling: what happens on bad input?
+You evaluate two layers:
 
-UI/UX TESTING:
-- Layout alignment and spacing issues
-- CTA clarity — are buttons/actions obvious?
-- Usability friction — confusing elements
-- Visual hierarchy — is important content prominent?
+1) ACTUALLY BROKEN (objective failures from the evidence)
+   - Broken/dead links (use the BROKEN LINKS list verbatim)
+   - HTTP error pages, redirect loops, missing pages
+   - Forms with no labels, no fields, or wrong method
+   - Missing <title>, missing meta description, missing viewport, missing favicon, missing lang
+   - Missing or duplicate H1
+   - Images with no alt text (use the count from evidence)
+   - Missing OG tags (bad share previews)
+   - Mixed content / non-HTTPS
 
-CONTENT TESTING:
-- Placeholder text left in production
-- Missing sections (about, contact, FAQ)
-- Unclear messaging or jargon
-- Broken images or media
+2) CUSTOMER EXPERIENCE FAILURES (the hard part — judge like a human)
+   - "I don't know what this product is" → unclear value prop in first 5 seconds (judge from first-impression copy + H1 + CTAs)
+   - "I don't know what to do next" → unclear primary CTA, too many competing CTAs, weak CTA labels ("Submit", "Click here", "Learn more" with no context)
+   - "I don't trust this" → no pricing, no contact, no about, no testimonials, no social proof, no privacy/terms
+   - "I'm confused" → no visual hierarchy in headings (e.g. 0 or 3+ H1s, headings that don't tell a story), jargon, undefined acronyms
+   - "Who is this for?" → no audience signal, no use case
+   - "What does it cost?" → no pricing or pricing hidden
+   - "Is this real?" → AI-generic copy, placeholder text ("Lorem ipsum", "Your tagline here", "Company name"), stock-looking everything
+   - Navigation confusion — too many nav items, vague labels, no clear path to convert
+   - Mobile/touch issues based on viewport + CTA density
+   - Form friction — too many fields, scary fields up front, no labels
 
-ACCESSIBILITY TESTING:
-- Missing alt text on images
-- Missing form labels
-- Color contrast issues
-- Keyboard navigation problems
-- ARIA attributes
+For EACH finding give:
+- A specific, evidence-backed title (quote the actual heading/CTA/link when possible)
+- WHY a customer would bounce or distrust because of it
+- A concrete fix in plain language AND a code/no-code option
 
-RESPONSIVE TESTING:
-- Mobile layout issues
-- Touch target sizes
-- Viewport meta tag
-- Responsive images
-
-PERFORMANCE / QUALITY:
-- Render-blocking resources
-- Large images without optimization
-- Missing lazy loading
-- Slow-loading patterns
-
-USER FLOW TESTING:
-- Onboarding flow completeness
-- Signup/login friction
-- Checkout or conversion flow issues
-- Drop-off risk points
-
-SECURITY (STRONG):
-- Input validation (XSS, injection patterns)
-- Authentication weaknesses
-- Session/cookie security
-- Data exposure risks
-- HTTPS/mixed content
-- Missing security headers (CSP, X-Frame, HSTS)
-- Business logic bypass potential
-- API/data flow safety
-- Error information leakage
-
-EDGE CASE GENERATION:
-- Generate realistic test cases for the most critical flows
-- Identify rare but high-impact failure scenarios
-
-For EACH issue, provide clear, specific, actionable details. Be realistic based on the URL type.${trainingBlock}`
+Be honest. If the site IS clear and trustworthy, raise FEWER issues — quality over quantity. If it's bad, raise everything you'd raise as a real customer.${trainingBlock}`
           },
           {
             role: 'user',
-            content: `Perform a comprehensive QA + security analysis of: ${url}${company_name ? ` (Company: ${company_name})` : ''}
+            content: `Customer-test this site as if you just landed on it: ${url}${company_name ? ` (Company: ${company_name})` : ''}
 
-Generate 15-25 realistic issues across ALL categories. Include at least:
-- 3 functional issues
-- 3 UI/UX issues  
-- 2 content issues
-- 2 accessibility issues
-- 2 responsive issues
-- 2 performance issues
-- 3 security issues
-- 2 edge case scenarios
+CRAWL EVIDENCE (this is ground truth — do not invent beyond it):
+${evidenceSummary}${brokenBlock}
 
-For each issue, include specific fix instructions for developers AND non-technical users.`
+Produce 8-20 evidence-backed findings. Skew toward CUSTOMER EXPERIENCE failures (clarity, hierarchy, "what is this product", trust) more than generic QA. Every broken link in the list above MUST appear as its own finding.`
           }
+        ],
+        tools: [{
+          type: 'function',
+          function: {
+            name: 'website_analysis',
+            description: 'Return evidence-backed customer-tester analysis',
+            parameters: {
+              type: 'object',
+              properties: {
+                health_score: { type: 'integer', description: 'Overall customer-readiness 0-100. Be honest: a confusing site with no value prop scores low even if technically fine.' },
+                security_score: { type: 'integer', description: 'Security/trust 0-100 (HTTPS, privacy/terms presence, trust signals)' },
+                sentiment_score: { type: 'integer', description: 'How a first-time customer would feel 0-100' },
+                ai_summary: { type: 'string', description: '3-4 sentences in the voice of a customer: "I landed here and..." — include what is clear, what is confusing, and the #1 thing to fix.' },
+                brand_analysis: {
+                  type: 'object',
+                  properties: {
+                    tone: { type: 'string' },
+                    positioning: { type: 'string', description: 'What the site appears to offer and to whom, based ONLY on evidence. If unclear, say so.' },
+                    customer_expectations: { type: 'string' },
+                    differentiator: { type: 'string', description: 'Differentiator stated on the site. If none is visible, say "None visible".' }
+                  },
+                  required: ['tone', 'positioning', 'customer_expectations', 'differentiator']
+                },
+                issues: {
+                  type: 'array',
+                  items: {
+                    type: 'object',
+                    properties: {
+                      title: { type: 'string', description: 'Specific, evidence-backed title. Quote real text when possible.' },
+                      description: { type: 'string', description: 'What a customer experiences and why they bounce/distrust. Reference the evidence.' },
+                      category: { type: 'string', enum: ['clarity', 'hierarchy', 'trust', 'cta', 'navigation', 'content', 'broken', 'accessibility', 'performance', 'mobile', 'security', 'form'] },
+                      priority: { type: 'string', enum: ['critical', 'warning', 'low'] },
+                      impact: { type: 'string', description: 'Concrete customer impact: bounce, lost trust, abandoned signup, etc.' },
+                      location: { type: 'string', description: 'Exact page URL + element (e.g. "homepage hero", "/pricing H1", "footer contact link")' },
+                      fix_dev: { type: 'string' },
+                      fix_code: { type: 'string' },
+                      fix_nocode: { type: 'string' },
+                      fix_content: { type: 'string', description: 'Example copy a non-technical owner can paste in.' },
+                      fix_visual: { type: 'string' }
+                    },
+                    required: ['title', 'description', 'category', 'priority', 'impact', 'location']
+                  }
+                }
+              },
+              required: ['health_score', 'security_score', 'sentiment_score', 'ai_summary', 'brand_analysis', 'issues']
+            }
+          }
+        }],
+        tool_choice: { type: 'function', function: { name: 'website_analysis' } }
+      }),
+    });
+
         ],
         tools: [{
           type: 'function',
