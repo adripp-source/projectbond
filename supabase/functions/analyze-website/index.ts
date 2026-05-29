@@ -415,21 +415,56 @@ Produce 4-12 findings, prioritized by REAL IMPACT (functional > journey > perf >
       }
       if (aiResponse.status === 402) {
         return new Response(JSON.stringify({ error: 'AI credits exhausted. Add funds in Settings > Workspace > Usage.' }), {
-          status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-    const analysis = JSON.parse(toolCall.function.arguments);
-
     // ---- Deterministic severity normalizer + re-weighted health_score ----
-    // Cosmetic categories can never be > low. Broken/functional categories get bumped up.
-    const COSMETIC_TITLE = /(favicon|og:image|og image|share preview|meta description length|missing footer|about page|testimonial|trusted by|social proof|pricing page)/i;
-    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|login|sign[\s-]?in|checkout|payment|contact form|api (error|fail)|cors)/i;
-    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu)/i;
+    // Cosmetic items get dropped entirely. Login/crash/auth always critical.
+    const COSMETIC_DROP = /(favicon|og:image|og image|share preview|meta description length)/i;
+    const COSMETIC_TITLE = /(missing footer|about page|testimonial|trusted by|social proof|pricing page)/i;
+    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|crash|hangs?|api (error|fail)|cors)/i;
+    const AUTH_TITLE = /(login|log[- ]?in|sign[- ]?in|sign[- ]?up|register|password|reset|forgot|oauth|sso|account access|session|authent)/i;
+    const PAYMENT_TITLE = /(checkout|payment|billing|cart|purchase|stripe|paddle)/i;
+    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu|confusing (edit|save|flow))/i;
 
     if (Array.isArray(analysis.issues)) {
+      // Drop pure-cosmetic noise the user explicitly does not want
+      analysis.issues = analysis.issues.filter((it: any) => {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        return !COSMETIC_DROP.test(t);
+      });
       for (const it of analysis.issues) {
         const t = `${it.title || ''} ${it.description || ''}`;
-        if (COSMETIC_TITLE.test(t) && !FUNCTIONAL_TITLE.test(t)) it.priority = 'low';
+        if (AUTH_TITLE.test(t) || PAYMENT_TITLE.test(t)) it.priority = 'critical';
+        else if (FUNCTIONAL_TITLE.test(t) && it.priority !== 'critical') it.priority = 'critical';
+        else if (JOURNEY_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
+        else if (COSMETIC_TITLE.test(t)) it.priority = 'low';
+        if (it.category === 'broken' && it.priority === 'low') it.priority = 'warning';
+      }
+      // Sort by priority so the UI shows the importance wall top-down
+      const rank: Record<string, number> = { critical: 0, warning: 1, low: 2 };
+      analysis.issues.sort((a: any, b: any) => (rank[a.priority] ?? 3) - (rank[b.priority] ?? 3));
+      // Cap low-priority findings at 2 to keep the report focused
+      let lowKept = 0;
+      analysis.issues = analysis.issues.filter((it: any) => {
+        if (it.priority !== 'low') return true;
+        lowKept++;
+        return lowKept <= 2;
+      });
+      // Re-weighted score: functional 55 / journey 25 / perf 10 / a11y 7 / marketing 3
+      const weightFor = (it: any): { bucket: string; weight: number } => {
+        const t = `${it.title || ''} ${it.description || ''}`;
+        if (AUTH_TITLE.test(t) || PAYMENT_TITLE.test(t)) return { bucket: 'functional', weight: 55 };
+        if (it.category === 'broken' || it.category === 'form' || FUNCTIONAL_TITLE.test(t)) return { bucket: 'functional', weight: 55 };
+        if (it.category === 'navigation' || it.category === 'cta' || it.category === 'clarity' || JOURNEY_TITLE.test(t)) return { bucket: 'journey', weight: 25 };
+        if (it.category === 'performance') return { bucket: 'perf', weight: 10 };
+        if (it.category === 'accessibility' || it.category === 'mobile') return { bucket: 'a11y', weight: 7 };
+        return { bucket: 'marketing', weight: 3 };
+      };
+      const sevPenalty = (p: string) => (p === 'critical' ? 1 : p === 'warning' ? 0.45 : 0.1);
+      let totalPenalty = 0;
+      const maxBucket: Record<string, number> = { functional: 55, journey: 25, perf: 10, a11y: 7, marketing: 3 };
+      const usedBucket: Record<string, number> = { functional: 0, journey: 0, perf: 0, a11y: 0, marketing: 0 };
+      for (const it of analysis.issues) {
+        const { bucket, weight } = weightFor(it);
+        const pen = weight * sevPenalty(it.priority || 'low');
         if (FUNCTIONAL_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
         if (it.category === 'broken' && it.priority !== 'critical') it.priority = 'warning';
       }
