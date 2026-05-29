@@ -180,8 +180,8 @@ serve(async (req) => {
     let scanned = 0;
 
     let probedPages = 0;
-    const MAX_PAGES_PER_SITE = 25;
-    const MAX_TIME_PER_SITE_MS = 30_000;
+    const MAX_PAGES_PER_SITE = 300;
+    const MAX_TIME_PER_SITE_MS = 60_000;
 
     for (const t of targets.slice(0, 10)) {
       let origin: URL;
