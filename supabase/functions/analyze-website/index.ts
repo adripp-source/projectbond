@@ -542,7 +542,6 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
     }
     const computed = Math.max(0, Math.min(100, Math.round(100 - totalPenalty)));
     const aiScore = typeof analysis.health_score === 'number' ? analysis.health_score : computed;
-    // Rubric-based score (caps at 100), if AI returned sub-scores
     const rubricSum =
       (Number(analysis.product_access) || 0) +
       (Number(analysis.flow_quality) || 0) +
@@ -550,15 +549,23 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
       (Number(analysis.ux_friction_quality) || 0) +
       (Number(analysis.evidence_quality) || 0);
     const hasRubric = rubricSum > 0;
-    const blended = hasRubric
-      ? Math.round(computed * 0.4 + aiScore * 0.2 + rubricSum * 0.4)
-      : Math.round(computed * 0.7 + aiScore * 0.3);
-    // Don't give out perfect scores
-    analysis.health_score = Math.min(95, Math.max(0, blended));
+    let blended = hasRubric
+      ? Math.round(computed * 0.5 + aiScore * 0.2 + rubricSum * 0.3)
+      : Math.round(computed * 0.75 + aiScore * 0.25);
 
-    const coverageLine = analysis.coverage
-      ? `Coverage: ${analysis.coverage.pages_tested ?? pages.length}/${analysis.coverage.pages_discovered ?? pages.length} pages tested, authenticated area ${analysis.coverage.authenticated_area_reached ? 'reached' : 'NOT reached'}.`
-      : `Coverage: ${pages.length} pages crawled, authenticated area not reached by automated crawler.`;
+    // SPA + no hard failures = working site the crawler just can't see. Don't punish for crawler blindness.
+    const hardCriticals = analysis.issues.filter((i: any) => i.priority === 'critical' && (i.category === 'broken' || /broken link|http (4|5)\d\d|redirect loop/i.test(`${i.title} ${i.description}`))).length;
+    if (isSpaApp && hardCriticals === 0 && pages.length > 0) {
+      blended = Math.max(blended, 78); // floor for "site loads, nothing actually broken"
+    }
+    if (pages.length > 0 && broken.length === 0 && analysis.issues.filter((i: any) => i.priority === 'critical').length === 0) {
+      blended = Math.max(blended, 72);
+    }
+
+    analysis.health_score = Math.min(95, Math.max(0, blended));
+    analysis.confidence = lowConfidence ? 'low' : (pages.length >= 10 ? 'high' : 'medium');
+
+    const coverageLine = `Coverage: ${pages.length} pages crawled via raw HTML. ${isSpaApp ? 'SPA detected — rendered React/Vite app could NOT be tested by this crawler. The real product UI, login flow, and authenticated areas are UNVERIFIED.' : 'Authenticated area not reached by automated crawler.'} Confidence: ${analysis.confidence.toUpperCase()}.`;
     const rubricLine = hasRubric
       ? `Rubric — Access ${analysis.product_access}/20 · Flows ${analysis.flow_quality}/25 · Functional ${analysis.functional_quality}/25 · UX ${analysis.ux_friction_quality}/15 · Evidence ${analysis.evidence_quality}/15.`
       : '';
