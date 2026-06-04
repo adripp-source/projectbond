@@ -568,6 +568,7 @@ serve(async (req) => {
       broken.length ? `Found ${broken.length} broken link${broken.length === 1 ? '' : 's'}.` : 'No broken links detected.',
       slowPages.length ? `${slowPages.length} slow page${slowPages.length === 1 ? '' : 's'} (>3s).` : '',
       isSpaApp ? 'Site is a JavaScript app — only the HTML shell could be inspected, not the rendered UI.' : '',
+      bypassLayersTried.length ? `Bypass system tried ${bypassLayersTried.length} layer${bypassLayersTried.length === 1 ? '' : 's'}${bypassWinner ? ` (winner: ${bypassWinner})` : ' (no layer recovered usable HTML)'}.` : '',
       `Confidence: ${confidence.toUpperCase()}.`,
     ].filter(Boolean).join(' ');
 
