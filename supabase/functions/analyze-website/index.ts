@@ -363,15 +363,15 @@ serve(async (req) => {
     const sample = [...allLinks].filter(h => !followed.has(h)).slice(0, 60);
     await Promise.all(sample.map(async (href) => {
       const r = await safeFetchHtml(href, 'HEAD');
-      if (!r) broken.push({ url: href, status: 0, from: home.finalUrl });
-      else if (r.status >= 400) broken.push({ url: r.finalUrl, status: r.status, from: home.finalUrl });
+      if (!r) broken.push({ url: href, status: 0, from: homeForExtract.finalUrl });
+      else if (r.status >= 400) broken.push({ url: r.finalUrl, status: r.status, from: homeForExtract.finalUrl });
     }));
 
     // ---------- Deterministic findings ----------
     const slowPages = pages.filter(p => p.ms > 3000);
     const emptyPages = pages.filter(p => p.ev.looksEmpty || p.ev.isSpaShell);
     const isSpaApp = pages.length > 0 && emptyPages.length / pages.length >= 0.5 && pages.some(p => p.ev.scriptTags >= 1);
-    const isHttps = home.finalUrl.startsWith('https://');
+    const isHttps = homeForExtract.finalUrl.startsWith('https://');
 
     const issues: any[] = [];
 
@@ -494,7 +494,7 @@ serve(async (req) => {
         description: 'The homepage is missing a <title> tag.',
         category: 'content', priority: 'warning',
         impact: 'Browser tab and Google results show URL or junk.',
-        location: home.finalUrl,
+        location: homeForExtract.finalUrl,
         repro_steps: 'Open the homepage and look at the browser tab.',
         expected: 'Clear page title.', actual: 'No title.',
         user_impact: 'Bookmarks and search snippets look broken.',
@@ -507,7 +507,7 @@ serve(async (req) => {
         description: 'No <meta name="description"> on the homepage.',
         category: 'content', priority: 'low',
         impact: 'Google may snippet random page text.',
-        location: home.finalUrl,
+        location: homeForExtract.finalUrl,
         repro_steps: 'View page source on the homepage.',
         expected: 'A 120-160 char meta description.', actual: 'No tag.',
         user_impact: 'Worse search snippet → fewer clicks.',
