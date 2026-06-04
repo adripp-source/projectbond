@@ -496,8 +496,9 @@ serve(async (req) => {
       });
     }
 
-    // Missing title / description (only at homepage)
-    if (!homeEv.title) {
+    // Missing title / description — MARKETING only. Internal app routes
+    // (e.g. /analysis, /dashboard) are not graded as homepages.
+    if (reportMode === 'marketing' && !homeEv.title) {
       issues.push({
         title: 'Homepage has no <title>',
         description: 'The homepage is missing a <title> tag.',
@@ -510,7 +511,7 @@ serve(async (req) => {
         fix_dev: 'Add <title>Your Brand — Tagline</title> to the homepage <head>.',
       });
     }
-    if (!homeEv.description && !isSpaApp) {
+    if (reportMode === 'marketing' && !homeEv.description && !isSpaApp) {
       issues.push({
         title: 'Homepage missing meta description',
         description: 'No <meta name="description"> on the homepage.',
@@ -524,8 +525,9 @@ serve(async (req) => {
       });
     }
 
-    // SPA notice — one site-wide low note
-    if (isSpaApp) {
+    // SPA notice — MARKETING only. For React/Vite apps this is normal and
+    // not a product failure; reporting it on /analysis etc. is wrong.
+    if (reportMode === 'marketing' && isSpaApp) {
       issues.push({
         title: 'Site renders content via JavaScript (no server-side HTML)',
         description: 'Normal for React/Vite/Next-client apps, but it limits SEO crawlers and link-preview bots. Crawler could not verify in-app UI.',
@@ -539,6 +541,7 @@ serve(async (req) => {
         fix_dev: 'Consider SSR / pre-rendering (Next.js, Astro, React Router SSR) for marketing pages.',
       });
     }
+
 
     // ---------- Scoring (deterministic) ----------
     const sev = (p: string) => (p === 'critical' ? 18 : p === 'warning' ? 7 : 2);
