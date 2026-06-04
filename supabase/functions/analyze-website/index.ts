@@ -241,6 +241,15 @@ serve(async (req) => {
     const { url, company_name, scan_id } = await req.json();
     if (!url) return new Response(JSON.stringify({ error: 'URL is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
+    // Classify scan target: marketing/homepage vs internal app route.
+    // App routes are judged on rendered UI/workflows, NOT on SEO metadata.
+    const APP_ROUTE_RE = /\/(analysis|dashboard|settings|reports?|action[-_]?center|actions|flow[-_]?logic|ai[-_]?tester|admin|app|account|profile|billing|inbox|console|workspace|home|onboarding|editor|branding|media|tech[-_]?docs|dev[-_]?board)(\/|$|\?|#)/i;
+    let urlPath = '/';
+    try { urlPath = new URL(url).pathname || '/'; } catch {}
+    const isAppRoute = APP_ROUTE_RE.test(urlPath);
+    const reportMode: 'marketing' | 'product' = isAppRoute ? 'product' : 'marketing';
+
+
     const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     // ---------- Crawl ----------
