@@ -576,13 +576,17 @@ serve(async (req) => {
     const securityScore = isHttps ? (issues.some(i => i.category === 'security' && i.priority === 'critical') ? 40 : 88) : 30;
     const confidence = isSpaApp ? 'low' : (pages.length >= 8 ? 'high' : 'medium');
     const summary = [
+      `Report mode: ${reportMode === 'product' ? 'PRODUCT / APP QA' : 'MARKETING / SEO'} (path: ${urlPath}).`,
       `Tested ${pages.length} page${pages.length === 1 ? '' : 's'} from ${url}.`,
       broken.length ? `Found ${broken.length} broken link${broken.length === 1 ? '' : 's'}.` : 'No broken links detected.',
       slowPages.length ? `${slowPages.length} slow page${slowPages.length === 1 ? '' : 's'} (>3s).` : '',
-      isSpaApp ? 'Site is a JavaScript app — only the HTML shell could be inspected, not the rendered UI.' : '',
+      reportMode === 'product' && isSpaApp
+        ? 'App route detected — SEO/meta findings are suppressed. HTML-only scan cannot verify in-app UI; product workflows need a logged-in browser test.'
+        : (isSpaApp ? 'Site is a JavaScript app — only the HTML shell could be inspected, not the rendered UI.' : ''),
       bypassLayersTried.length ? `Bypass system tried ${bypassLayersTried.length} layer${bypassLayersTried.length === 1 ? '' : 's'}${bypassWinner ? ` (winner: ${bypassWinner})` : ' (no layer recovered usable HTML)'}.` : '',
       `Confidence: ${confidence.toUpperCase()}.`,
     ].filter(Boolean).join(' ');
+
 
     // Lightweight brand inference (no AI): from title + description
     const brand_analysis = company_name ? {
