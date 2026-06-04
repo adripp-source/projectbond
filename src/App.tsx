@@ -4,6 +4,8 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { WebsiteProvider } from "@/contexts/WebsiteContext";
+import { SimplifyProvider } from "@/contexts/SimplifyContext";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import AppLayout from "@/components/layout/AppLayout";
@@ -33,6 +35,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <AuthProvider>
+          <WebsiteProvider>
+          <SimplifyProvider>
           <ConfirmProvider>
           <Routes>
             <Route path="/" element={<Landing />} />
@@ -69,6 +73,8 @@ const App = () => (
             <Route path="*" element={<NotFound />} />
           </Routes>
           </ConfirmProvider>
+          </SimplifyProvider>
+          </WebsiteProvider>
         </AuthProvider>
       </BrowserRouter>
     </TooltipProvider>
