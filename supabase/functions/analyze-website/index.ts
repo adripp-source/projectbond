@@ -235,26 +235,33 @@ serve(async (req) => {
 
     // ---------- Build evidence summary ----------
     const slowPages = pages.filter(p => p.ms > 3000).map(p => `${p.url} (${p.ms}ms)`);
-    const emptyPages = pages.filter(p => p.ev.looksEmpty || p.ev.isSpaShell).map(p => `${p.url}${p.ev.isSpaShell ? ' (SPA shell, no SSR)' : ' (empty body)'}`);
+    const emptyPages = pages.filter(p => p.ev.looksEmpty || p.ev.isSpaShell);
     const authPages = pages.filter(p => /login|signin|signup|register|account|auth|password/i.test(p.url) || p.ev.forms.some(f => f.isAuth));
     const formPages = pages.filter(p => p.ev.forms.length > 0);
+
+    // SPA detection: if most pages look empty AND have a root/app mount + scripts, this is an SPA.
+    // The raw-HTML crawler cannot see the rendered app — treat as LOW CONFIDENCE, not "broken".
+    const spaShellRatio = pages.length ? emptyPages.length / pages.length : 0;
+    const isSpaApp = pages.length > 0 && spaShellRatio >= 0.5 && pages.some(p => p.ev.scriptTags >= 1);
+    const lowConfidence = isSpaApp || pages.length <= 2;
+    const confidenceNote = isSpaApp
+      ? `\n\n⚠ SPA DETECTED: ${emptyPages.length}/${pages.length} pages render their content via JavaScript. The raw-HTML crawler cannot see the rendered app, so it could NOT verify the real product UI, login flow, or authenticated areas. This is a CRAWLER LIMITATION, not a product defect. Coverage is INCOMPLETE and confidence is LOW. Do NOT flag pages as "empty" or "broken" on that basis — at most note SSR/SEO once across the whole site.`
+      : '';
 
     const evidenceSummary = pages.length
       ? pages.slice(0, 25).map(p => `URL: ${p.url} (HTTP ${p.status}, ${p.ms}ms, ${p.ev.totalBytes}b)
 Title: ${p.ev.title || '(MISSING)'}
 H1 count: ${p.ev.h1Count} | Headings: ${p.ev.headings.slice(0, 6).map(h => `${h.tag}:"${h.text}"`).join(' | ')}
-CTAs (${p.ev.ctas.length}): ${p.ev.ctas.slice(0, 12).join(' | ') || '(NONE)'}
-Forms: ${p.ev.forms.map(f => `[${f.method.toUpperCase()} action=${f.action} fields=${f.fields.join(',')} labels=${f.hasLabels} isAuth=${f.isAuth}]`).join(' ') || 'none'}
-Nav: ${p.ev.navText ? 'yes' : 'NO'} | Footer: ${p.ev.footerText ? 'yes' : 'NO'}
-Empty body: ${p.ev.looksEmpty} | SPA shell (no SSR): ${p.ev.isSpaShell} | Console errors in HTML: ${p.ev.hasConsoleError}
-Scripts: ${p.ev.scriptTags} (${p.ev.inlineScripts} inline) | CSS: ${p.ev.cssTags}
-First impression: ${p.ev.bodyText.slice(0, 400)}`).join('\n\n---\n\n')
+CTAs in raw HTML (${p.ev.ctas.length}): ${p.ev.ctas.slice(0, 12).join(' | ') || '(none in raw HTML — may be JS-rendered)'}
+Forms in raw HTML: ${p.ev.forms.map(f => `[${f.method.toUpperCase()} action=${f.action} fields=${f.fields.join(',')} labels=${f.hasLabels} isAuth=${f.isAuth}]`).join(' ') || 'none in raw HTML'}
+Raw-HTML empty: ${p.ev.looksEmpty} | SPA shell: ${p.ev.isSpaShell} | JS error tokens: ${p.ev.hasConsoleError}
+Scripts: ${p.ev.scriptTags} | CSS: ${p.ev.cssTags}`).join('\n\n---\n\n')
       : crawlNote;
 
     const brokenBlock = broken.length
       ? `\n\nBROKEN / DEAD LINKS (${broken.length} total — each is a real finding):\n${broken.slice(0, 25).map(b => `- ${b.url} → HTTP ${b.status || 'unreachable'} (from ${b.from})`).join('\n')}`
       : '';
-    const summaryStats = `\n\nCRAWL STATS:\n- Pages crawled: ${pages.length}\n- Broken links: ${broken.length}\n- Slow pages (>3s): ${slowPages.length}${slowPages.length ? '\n  ' + slowPages.slice(0, 5).join('\n  ') : ''}\n- Empty/SPA-shell pages (no SSR content): ${emptyPages.length}${emptyPages.length ? '\n  ' + emptyPages.slice(0, 5).join('\n  ') : ''}\n- Auth pages found: ${authPages.length}${authPages.length ? '\n  ' + authPages.map(p => p.url).slice(0, 5).join('\n  ') : ' — NO LOGIN/SIGNUP FOUND. If product needs accounts, this is critical.'}\n- Pages with forms: ${formPages.length}`;
+    const summaryStats = `\n\nCRAWL STATS:\n- Pages crawled: ${pages.length}\n- Broken links: ${broken.length}\n- Slow pages (>3s): ${slowPages.length}${slowPages.length ? '\n  ' + slowPages.slice(0, 5).join('\n  ') : ''}\n- SPA-shell pages (JS-rendered, crawler cannot see UI): ${emptyPages.length}\n- Auth pages found in raw HTML: ${authPages.length}${authPages.length ? '\n  ' + authPages.map(p => p.url).slice(0, 5).join('\n  ') : ''}\n- Pages with raw-HTML forms: ${formPages.length}${confidenceNote}`;
 
     // ---------- AI call ----------
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
@@ -265,45 +272,54 @@ First impression: ${p.ev.bodyText.slice(0, 400)}`).join('\n\n---\n\n')
         messages: [
           {
             role: 'system',
-            content: `You are ProjectBond V2 — an AUTOMATED QA system. You are NOT a human. You do NOT have human taste. Do NOT judge color, vibe, "feels off", or aesthetic. Judge rubrics, evidence, and observable facts only. If you don't have evidence, say "No evidence available." Never invent users, reviews, sentiment, complaints, or media coverage.
+            content: `You are ProjectBond V2 — an AUTOMATED QA system. You are NOT a human. Judge rubrics + observable evidence only. Never invent users, reviews, sentiment, or media coverage.
+
+=== CRAWLER LIMITATION (READ FIRST) ===
+This crawler reads RAW HTML only — it does NOT execute JavaScript. Modern React/Vite/Next SPAs serve <div id="root"></div> + scripts; the real UI is rendered client-side. When CRAWL STATS says "SPA DETECTED" or a page is a "SPA shell":
+- This is a CRAWLER LIMITATION, not a product bug.
+- DO NOT flag pages as "empty", "broken", "blank", "dead", "renders nothing", or "no content".
+- DO NOT claim login/signup/CTA/nav is missing just because raw HTML didn't show it — the real UI is JS-rendered.
+- DO NOT flag "no SSR" per page. At MOST raise ONE low-priority SEO/SSR note for the whole site, never per page, never critical.
+- Mark coverage as INCOMPLETE and confidence LOW. Report which app sections you could NOT verify.
 
 === PRIORITY ORDER ===
-1. ENTER THE PRODUCT FIRST. Look in crawled URLs and forms for: login, signin, signup, register, dashboard, account, portal, workspace, app, settings, profile, billing. Common paths: /login /signin /signup /register /dashboard /account /profile /app /workspace /settings. Login-success signals: Sign Out, Logout, avatar, profile menu. If product clearly needs accounts (dashboard/account/settings exists) but no auth page is reachable → CRITICAL.
-2. CRAWL THE REAL APP. Don't stop at the homepage. Note pages discovered vs tested vs unreachable.
-3. TEST REAL WORKFLOWS: login, signup, run scan, view results, action center, branding, settings, AI tester, tech docs, report generation, account management. Workflows > SEO.
-4. FIND REAL PROBLEMS using severity below. Evidence-based only.
-5. COMMON SENSE. If app has Action Center / Branding / AI Tester / Tech Docs / Settings / Reports and none were tested, COVERAGE IS INCOMPLETE — say so. Don't claim full test. If a page looks blank, verify it isn't a JS/SPA render issue before calling it broken.
-
-=== SEVERITY (strict, evidence required) ===
-- critical = user BLOCKED RIGHT NOW: login broken, signup broken, button does nothing, form doesn't submit, save fails, report fails, navigation broken, 5xx, redirect loop, SPA shell with no SSR, dead primary CTA, checkout broken.
-- warning (covers HIGH+MEDIUM): users get stuck, dead ends, loops, missing next step, empty states, hard-to-find core features, confusing labels, poor onboarding, too many clicks.
-- low: SEO, minor a11y, cosmetic. CAP AT 2 LOW TOTAL.
+1. Real broken links (HTTP 4xx/5xx) listed in BROKEN / DEAD LINKS — these are real and reproducible.
+2. Real raw-HTML forms with concrete problems (e.g. an auth form present with no <label>) — only if the form actually appears in raw HTML.
+3. Crawler reachability issues (DNS fail, 5xx on homepage, redirect loops).
+4. SEO/meta only as low-priority, max 1-2 total.
 
 === NEVER RAISE ===
-favicon, og:image, share preview, meta description length, missing H1 if visible product name in hero, missing footer on one-pager, missing testimonials/about/"trusted by", generic "no social proof", generic CTA wording.
+- "Empty page", "blank page", "SPA shell", "no content", "renders nothing without JS" as critical or per-page. (One site-wide low note max.)
+- Missing login/signup just because /login wasn't found in raw HTML — JS routers hide it from the crawler.
+- Missing H1, favicon, og:image, share preview, meta description length, footer, testimonials, "trusted by", social proof, generic CTA wording.
+- Duplicate findings of the same type. Group "empty without JS" into ONE site-wide finding, not 10.
+- Speculation, vibes, color/aesthetic critique, or anything you can't point to a URL + concrete observable for.
 
-=== DO NOT BE HARSH ===
-Working sites are normal. Even Google has imperfections. DO NOT give perfect scores. DO NOT say "everything is broken." Be CALIBRATED:
-- Working site, clear value prop, no blockers: 75-90
-- One real critical blocker: 40-65
-- Multiple critical blockers genuinely blocking users: under 30
-- Never output 100. Never output a 10/10 sub-score unless there is literally zero evidence of any issue in that bucket AND coverage was complete.
-
-=== PROJECTBOND QUALITY RUBRIC (max 100) ===
-Fill these honestly based on the crawl:
-- product_access (0-20): 0 homepage only · 5 login found · 10 login attempted · 15 auth area reached · 20 product entered. Automated crawl without credentials usually caps at 10-15.
-- flow_quality (0-25): 0 none · 10 some · 20 major · 25 core workflows completed
-- functional_quality (0-25): buttons, forms, navigation, saves, reports, feature execution
-- ux_friction_quality (0-15): confusing flows, dead ends, missing guidance, empty states
-- evidence_quality (0-15): every finding has URL + repro + expected + actual + impact + fix. Lose points here if evidence thin; do NOT invent findings to fill it.
+=== SEVERITY ===
+- critical = a real user is blocked RIGHT NOW with hard evidence: confirmed 5xx, confirmed broken link to a primary path, redirect loop, raw-HTML auth form with no labels.
+- warning = real but not blocking: dead link to secondary page, slow page (>3s), real-HTML form missing accessible labels.
+- low = SEO/meta/cosmetic. CAP AT 2 LOW TOTAL across the whole report.
 
 === EVERY FINDING MUST INCLUDE ===
-title (quote real text), description, category, priority, location (URL + element), repro_steps, expected, actual, user_impact, fix_dev. No evidence → don't raise it.
+title, description, category, priority, location (real URL), repro_steps, expected, actual, user_impact, fix_dev. If you cannot fill repro_steps with concrete clicks → don't raise it.
+
+=== SCORING (be calibrated, NOT harsh) ===
+- An SPA whose homepage returns 200 and has zero broken links should score 78-92. The crawler's inability to see the rendered UI is NOT the site's fault.
+- One real critical (confirmed 5xx / broken primary link / redirect loop): 55-70.
+- Multiple confirmed criticals: 30-55.
+- Never output 100. Never claim a score on something you couldn't test.
+
+=== RUBRIC (max 100) ===
+- product_access (0-20): cap at 10 if crawler couldn't enter auth area (almost always true for SPA).
+- flow_quality (0-25): cap at 12 if SPA detected and no flows were actually exercised.
+- functional_quality (0-25): score what was actually observed (broken links, 5xx, raw-HTML forms). Default ~18 if nothing broken was found.
+- ux_friction_quality (0-15): only score what you observed. Default 10 when no evidence either way.
+- evidence_quality (0-15): based on how well YOUR findings are sourced. If you raised noise findings, lose points here.
 
 === COVERAGE HONESTY ===
-In ai_summary, state: pages discovered, pages tested, pages skipped/unreachable, whether authenticated area was reached. If only public pages were tested, say: "Only public pages were tested. Authenticated product quality could not be verified."
+In ai_summary explicitly say: pages discovered vs tested, whether SPA was detected, whether authenticated area could NOT be verified, and confidence (low/medium/high). If SPA detected: "Confidence: LOW — only raw HTML inspected; the rendered React/SPA app could not be tested by this crawler."
 
-Quality over quantity: 3-10 findings, criticals first.${trainingBlock}`,
+Quality over quantity: 2-6 findings. Criticals first. Duplicates banned.${trainingBlock}`,
           },
           {
             role: 'user',
@@ -404,72 +420,91 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
     const analysis = JSON.parse(toolCall.function.arguments);
 
     // ---------- Deterministic severity normalizer ----------
-    const COSMETIC_DROP = /(favicon|og:image|og image|share preview|meta description length|missing meta description|alt text on decorative)/i;
-    const COSMETIC_TITLE = /(missing footer|about page|testimonial|trusted by|social proof badge)/i;
-    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|crash|hangs?|api (error|fail)|cors|spa shell|no ssr)/i;
-    const AUTH_TITLE = /(login|log[- ]?in|sign[- ]?in|sign[- ]?up|register|password|reset|forgot|oauth|sso|account access|session|authent)/i;
-    const PAYMENT_TITLE = /(checkout|payment|billing|cart|purchase|stripe|paddle)/i;
-    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu|confusing (edit|save|flow))/i;
+    // Aggressively drop crawler-limitation noise + generic SEO complaints.
+    const NOISE_DROP = /(favicon|og:image|og image|share preview|meta description|missing h1|no h1|footer (is )?missing|missing footer|testimonial|trusted by|social proof|alt text on decorative|generic cta|spa shell|no ssr|renders empty without js|page is empty|blank page|no server[- ]rendered|empty body|no content in raw html)/i;
+    const COSMETIC_TITLE = /(meta tag|seo|robots\.txt|sitemap|open graph)/i;
+    const FUNCTIONAL_TITLE = /(broken link|404|500|5xx|redirect loop|silently fails|does nothing|crash|hangs?|api (error|fail)|cors error)/i;
+    const AUTH_TITLE = /(login (broken|fails|404)|signup (broken|fails)|password reset broken|auth.* broken)/i;
+    const PAYMENT_TITLE = /(checkout broken|payment fails|billing broken|cart broken)/i;
+    const JOURNEY_TITLE = /(no navigation found|dead[- ]end|redirect loop|mobile menu broken)/i;
 
-    // Seed deterministic findings from crawl facts the AI might have skipped
+    function HIGH_VALUE(u: string) { return /\/(login|signin|signup|register|account|checkout|cart|pay|auth|contact)(\/|$|\?)/i.test(u); }
+
+    // Seed deterministic findings ONLY from hard evidence (no guessing).
     const deterministic: any[] = [];
     if (!pages.length) {
-      deterministic.push({ title: `Site unreachable: ${url}`, description: 'Crawler could not load the URL. Real users will see the same failure.', category: 'broken', priority: 'critical', impact: 'Every visitor blocked.', location: url });
+      deterministic.push({ title: `Site unreachable: ${url}`, description: 'Crawler could not load the URL. Real users will see the same failure.', category: 'broken', priority: 'critical', impact: 'Every visitor blocked.', location: url, repro_steps: `Open ${url} in a fresh browser.`, expected: 'Page loads with HTTP 200.', actual: 'Connection failed / DNS error / timeout.', user_impact: 'Nobody can reach the site.', fix_dev: 'Check DNS, hosting, SSL certificate, and origin server health.' });
     }
     for (const b of broken.slice(0, 8)) {
       deterministic.push({
-        title: `Broken link: ${b.url}`,
-        description: `Returns HTTP ${b.status || 'unreachable'}, linked from ${b.from}. A real user clicking this hits a dead end.`,
+        title: `Broken link → ${b.url}`,
+        description: `Returns HTTP ${b.status || 'unreachable'}, linked from ${b.from}.`,
         category: 'broken',
         priority: HIGH_VALUE(b.url) ? 'critical' : 'warning',
-        impact: 'User abandons or loses trust.',
+        impact: 'User hits a dead end.',
         location: b.url,
-        fix_dev: 'Remove the link, fix the destination URL, or restore the missing page.',
+        repro_steps: `On ${b.from}, click the link to ${b.url}.`,
+        expected: 'Destination loads with HTTP 200.',
+        actual: `HTTP ${b.status || 'unreachable / network error'}.`,
+        user_impact: 'User abandons or loses trust.',
+        fix_dev: 'Fix the destination URL, restore the page, or remove the link.',
       });
     }
-    if (pages.length && !pages.some(p => /login|signin|signup|register|auth/i.test(p.url) || p.ev.forms.some(f => f.isAuth))) {
-      const hasAccountUI = pages.some(p => /dashboard|account|profile|settings|app\./i.test(p.url));
-      if (hasAccountUI) {
-        deterministic.push({ title: 'No login or signup page found despite account UI', description: 'The crawl found account/dashboard/settings pages but no reachable login or signup. Returning users have no entry point.', category: 'auth', priority: 'critical', impact: 'Returning users cannot log in.', location: url, fix_dev: 'Expose /login and /signup with public, crawlable URLs.' });
-      }
-    }
-    for (const p of pages) {
-      if (p.ev.isSpaShell) {
-        deterministic.push({ title: `Page renders empty without JS: ${p.url}`, description: 'The page is a JS-only SPA shell with no server-rendered content. Search engines, link previews, screen readers, and slow connections see nothing.', category: 'performance', priority: 'critical', impact: 'Lost SEO + accessibility + first-paint users.', location: p.url, fix_dev: 'Add SSR / pre-rendering or render meaningful HTML before hydration.' });
-      }
-    }
+    // Auth form with no labels — only when an auth form was ACTUALLY seen in raw HTML.
     for (const p of pages) {
       for (const f of p.ev.forms) {
         if (f.isAuth && !f.hasLabels) {
-          deterministic.push({ title: `Auth form on ${p.url} has no <label> elements`, description: 'Login/signup form fields have no labels. Screen readers, password managers, and accessibility tools struggle.', category: 'auth', priority: 'critical', impact: 'Users with assistive tech blocked from signing in.', location: p.url, fix_dev: 'Wrap each input in <label> or add for/id pairing.' });
+          deterministic.push({ title: `Auth form on ${p.url} has no <label> elements`, description: 'A login/signup form was found in raw HTML with no <label>s. Screen readers and password managers struggle.', category: 'accessibility', priority: 'warning', impact: 'Assistive-tech users struggle to sign in.', location: p.url, repro_steps: `Open ${p.url} with a screen reader and Tab through the form.`, expected: 'Each field announces its label.', actual: 'Fields announce nothing.', user_impact: 'Users on screen readers cannot reliably complete sign-in.', fix_dev: 'Wrap each input in <label> or add matching for/id.' });
         }
       }
     }
-
-    function HIGH_VALUE(u: string) { return /\/(login|signin|signup|register|account|checkout|cart|pay|auth|contact)(\/|$|\?)/i.test(u); }
+    // SPA / SSR — ONE single low-priority note for the whole site (never per page, never critical).
+    if (isSpaApp) {
+      deterministic.push({
+        title: 'Site renders content via JavaScript (no server-side HTML)',
+        description: `The site is a JavaScript-rendered app. This is normal for React/Vite/Next-client apps, but it limits SEO crawlers and link-preview bots. NOTE: this also means ProjectBond's HTML crawler could NOT verify the in-app UI, login flow, or authenticated areas — those need to be tested in a real browser.`,
+        category: 'performance',
+        priority: 'low',
+        impact: 'SEO and link previews may not see content. Crawler coverage is limited.',
+        location: url,
+        repro_steps: 'View page source on the homepage and compare to what renders in a browser.',
+        expected: 'Key content visible in the initial HTML.',
+        actual: 'Initial HTML is mostly an empty shell + script tags.',
+        user_impact: 'Real users see the app fine; search engines / crawlers may not.',
+        fix_dev: 'Consider SSR / pre-rendering (Next.js, Astro, React Router SSR) for marketing pages if SEO matters.',
+      });
+    }
 
     if (!Array.isArray(analysis.issues)) analysis.issues = [];
     analysis.issues.push(...deterministic);
 
-    // Dedupe by lowercased title
-    const seenTitle = new Set<string>();
+    // Drop crawler-limitation noise + cosmetic complaints
     analysis.issues = analysis.issues.filter((it: any) => {
-      const k = String(it.title || '').toLowerCase().trim();
-      if (!k || seenTitle.has(k)) return false;
-      seenTitle.add(k);
+      const blob = `${it.title || ''} ${it.description || ''}`;
+      if (NOISE_DROP.test(blob) && !/broken link|http (4|5)\d\d|redirect loop/i.test(blob)) {
+        // exception: keep our own single SPA note
+        return /renders content via javascript/i.test(it.title || '');
+      }
       return true;
     });
 
-    // Drop cosmetic
-    analysis.issues = analysis.issues.filter((it: any) => !COSMETIC_DROP.test(`${it.title || ''} ${it.description || ''}`));
+    // Dedupe by title AND by category+location signature (so 10 "empty page" findings collapse)
+    const seenKey = new Set<string>();
+    analysis.issues = analysis.issues.filter((it: any) => {
+      const title = String(it.title || '').toLowerCase().trim();
+      const sig = `${(it.category || '').toLowerCase()}|${String(it.location || '').toLowerCase().trim()}|${title.slice(0, 40)}`;
+      if (!title || seenKey.has(title) || seenKey.has(sig)) return false;
+      seenKey.add(title);
+      seenKey.add(sig);
+      return true;
+    });
 
-    // Enforce severity walls
+    // Enforce severity walls (much narrower now — only escalate on REAL evidence patterns)
     for (const it of analysis.issues) {
       const t = `${it.title || ''} ${it.description || ''}`;
+      if (FUNCTIONAL_TITLE.test(t) && it.priority !== 'critical') it.priority = it.category === 'broken' ? 'critical' : 'warning';
       if (AUTH_TITLE.test(t) || PAYMENT_TITLE.test(t)) it.priority = 'critical';
-      else if (FUNCTIONAL_TITLE.test(t) && it.priority !== 'critical') it.priority = 'critical';
-      else if (JOURNEY_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
-      else if (COSMETIC_TITLE.test(t)) it.priority = 'low';
+      if (COSMETIC_TITLE.test(t)) it.priority = 'low';
       if (it.category === 'broken' && it.priority === 'low') it.priority = 'warning';
     }
 
@@ -507,7 +542,6 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
     }
     const computed = Math.max(0, Math.min(100, Math.round(100 - totalPenalty)));
     const aiScore = typeof analysis.health_score === 'number' ? analysis.health_score : computed;
-    // Rubric-based score (caps at 100), if AI returned sub-scores
     const rubricSum =
       (Number(analysis.product_access) || 0) +
       (Number(analysis.flow_quality) || 0) +
@@ -515,15 +549,23 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
       (Number(analysis.ux_friction_quality) || 0) +
       (Number(analysis.evidence_quality) || 0);
     const hasRubric = rubricSum > 0;
-    const blended = hasRubric
-      ? Math.round(computed * 0.4 + aiScore * 0.2 + rubricSum * 0.4)
-      : Math.round(computed * 0.7 + aiScore * 0.3);
-    // Don't give out perfect scores
-    analysis.health_score = Math.min(95, Math.max(0, blended));
+    let blended = hasRubric
+      ? Math.round(computed * 0.5 + aiScore * 0.2 + rubricSum * 0.3)
+      : Math.round(computed * 0.75 + aiScore * 0.25);
 
-    const coverageLine = analysis.coverage
-      ? `Coverage: ${analysis.coverage.pages_tested ?? pages.length}/${analysis.coverage.pages_discovered ?? pages.length} pages tested, authenticated area ${analysis.coverage.authenticated_area_reached ? 'reached' : 'NOT reached'}.`
-      : `Coverage: ${pages.length} pages crawled, authenticated area not reached by automated crawler.`;
+    // SPA + no hard failures = working site the crawler just can't see. Don't punish for crawler blindness.
+    const hardCriticals = analysis.issues.filter((i: any) => i.priority === 'critical' && (i.category === 'broken' || /broken link|http (4|5)\d\d|redirect loop/i.test(`${i.title} ${i.description}`))).length;
+    if (isSpaApp && hardCriticals === 0 && pages.length > 0) {
+      blended = Math.max(blended, 78); // floor for "site loads, nothing actually broken"
+    }
+    if (pages.length > 0 && broken.length === 0 && analysis.issues.filter((i: any) => i.priority === 'critical').length === 0) {
+      blended = Math.max(blended, 72);
+    }
+
+    analysis.health_score = Math.min(95, Math.max(0, blended));
+    analysis.confidence = lowConfidence ? 'low' : (pages.length >= 10 ? 'high' : 'medium');
+
+    const coverageLine = `Coverage: ${pages.length} pages crawled via raw HTML. ${isSpaApp ? 'SPA detected — rendered React/Vite app could NOT be tested by this crawler. The real product UI, login flow, and authenticated areas are UNVERIFIED.' : 'Authenticated area not reached by automated crawler.'} Confidence: ${analysis.confidence.toUpperCase()}.`;
     const rubricLine = hasRubric
       ? `Rubric — Access ${analysis.product_access}/20 · Flows ${analysis.flow_quality}/25 · Functional ${analysis.functional_quality}/25 · UX ${analysis.ux_friction_quality}/15 · Evidence ${analysis.evidence_quality}/15.`
       : '';

@@ -30,8 +30,6 @@ const getNavItems = (userType: string | null, companyCode: string | null) => [
   { path: "/branding", label: "Branding", icon: Palette },
   { path: "/flows", label: "Flow & Logic", icon: GitBranch },
   { path: "/ai-tester", label: "AI Tester", icon: Bot },
-
-  { path: "/flows", label: "Flow & Logic", icon: GitBranch },
   { path: "/docs", label: "Tech Docs", icon: BookOpen },
   { path: "/media", label: "Media Footprint", icon: Newspaper },
   { path: "/settings", label: "Settings", icon: Settings },
