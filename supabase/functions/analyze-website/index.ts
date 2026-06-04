@@ -323,10 +323,25 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
             parameters: {
               type: 'object',
               properties: {
-                health_score: { type: 'integer', description: '0-100 overall customer-readiness. Be calibrated: working site with clear value prop = 75-90 even if imperfect. Broken auth/checkout = under 40.' },
+                health_score: { type: 'integer', description: '0-100 overall. Calibrated: working site 75-90, one critical 40-65, multiple criticals <30. Never 100.' },
                 security_score: { type: 'integer' },
                 sentiment_score: { type: 'integer' },
-                ai_summary: { type: 'string', description: '3-4 sentences as a first-time visitor: what was clear, what was confusing, the #1 thing to fix.' },
+                product_access: { type: 'integer', description: '0-20 per rubric' },
+                flow_quality: { type: 'integer', description: '0-25 per rubric' },
+                functional_quality: { type: 'integer', description: '0-25 per rubric' },
+                ux_friction_quality: { type: 'integer', description: '0-15 per rubric' },
+                evidence_quality: { type: 'integer', description: '0-15 per rubric' },
+                coverage: {
+                  type: 'object',
+                  properties: {
+                    pages_discovered: { type: 'integer' },
+                    pages_tested: { type: 'integer' },
+                    pages_skipped: { type: 'integer' },
+                    authenticated_area_reached: { type: 'boolean' },
+                    notes: { type: 'string' },
+                  },
+                },
+                ai_summary: { type: 'string', description: '3-4 sentences: what was actually tested (pages discovered/tested/skipped), whether authenticated area was reached, top issue. If only public pages tested, say so explicitly.' },
                 benchmark_note: { type: 'string', description: 'How this site compares to typical sites of its type.' },
                 brand_analysis: {
                   type: 'object',
@@ -349,6 +364,10 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
                       priority: { type: 'string', enum: ['critical', 'warning', 'low'] },
                       impact: { type: 'string' },
                       location: { type: 'string' },
+                      repro_steps: { type: 'string' },
+                      expected: { type: 'string' },
+                      actual: { type: 'string' },
+                      user_impact: { type: 'string' },
                       fix_dev: { type: 'string' },
                       fix_code: { type: 'string' },
                       fix_nocode: { type: 'string' },
