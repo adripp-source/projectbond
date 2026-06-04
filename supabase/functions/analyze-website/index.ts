@@ -507,10 +507,30 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
     }
     const computed = Math.max(0, Math.min(100, Math.round(100 - totalPenalty)));
     const aiScore = typeof analysis.health_score === 'number' ? analysis.health_score : computed;
-    analysis.health_score = Math.round(computed * 0.7 + aiScore * 0.3);
+    // Rubric-based score (caps at 100), if AI returned sub-scores
+    const rubricSum =
+      (Number(analysis.product_access) || 0) +
+      (Number(analysis.flow_quality) || 0) +
+      (Number(analysis.functional_quality) || 0) +
+      (Number(analysis.ux_friction_quality) || 0) +
+      (Number(analysis.evidence_quality) || 0);
+    const hasRubric = rubricSum > 0;
+    const blended = hasRubric
+      ? Math.round(computed * 0.4 + aiScore * 0.2 + rubricSum * 0.4)
+      : Math.round(computed * 0.7 + aiScore * 0.3);
+    // Don't give out perfect scores
+    analysis.health_score = Math.min(95, Math.max(0, blended));
 
+    const coverageLine = analysis.coverage
+      ? `Coverage: ${analysis.coverage.pages_tested ?? pages.length}/${analysis.coverage.pages_discovered ?? pages.length} pages tested, authenticated area ${analysis.coverage.authenticated_area_reached ? 'reached' : 'NOT reached'}.`
+      : `Coverage: ${pages.length} pages crawled, authenticated area not reached by automated crawler.`;
+    const rubricLine = hasRubric
+      ? `Rubric — Access ${analysis.product_access}/20 · Flows ${analysis.flow_quality}/25 · Functional ${analysis.functional_quality}/25 · UX ${analysis.ux_friction_quality}/15 · Evidence ${analysis.evidence_quality}/15.`
+      : '';
     if (analysis.benchmark_note) {
-      analysis.ai_summary = `${analysis.ai_summary || ''}\n\nBenchmark: ${analysis.benchmark_note}`.trim();
+      analysis.ai_summary = `${analysis.ai_summary || ''}\n\n${coverageLine}\n${rubricLine}\nBenchmark: ${analysis.benchmark_note}`.trim();
+    } else {
+      analysis.ai_summary = `${analysis.ai_summary || ''}\n\n${coverageLine}\n${rubricLine}`.trim();
     }
 
     // ---------- Persist ----------
