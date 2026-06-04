@@ -1,3 +1,5 @@
+// Media footprint — deterministic, no AI. Returns honest empty/heuristic data
+// based only on what the user provided. No fake reviews/sentiment.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
@@ -11,211 +13,52 @@ serve(async (req) => {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing authorization' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    if (!authHeader) return new Response(JSON.stringify({ error: 'Missing authorization' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const supabase = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_ANON_KEY')!,
+      Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_ANON_KEY')!,
       { global: { headers: { Authorization: authHeader } } }
     );
-
     const { data: { user }, error: userError } = await supabase.auth.getUser();
-    if (userError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    if (userError || !user) return new Response(JSON.stringify({ error: 'Unauthorized' }), { status: 401, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
     const { company_name, social_twitter, social_linkedin, social_facebook, social_instagram } = await req.json();
-    if (!company_name) {
-      return new Response(JSON.stringify({ error: 'Company name is required' }), {
-        status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
+    if (!company_name) return new Response(JSON.stringify({ error: 'Company name is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
-    if (!LOVABLE_API_KEY) throw new Error('LOVABLE_API_KEY not configured');
+    const handles = [
+      social_twitter && { platform: 'X / Twitter', handle: `@${social_twitter}`, url: `https://x.com/${social_twitter}` },
+      social_linkedin && { platform: 'LinkedIn', handle: social_linkedin, url: social_linkedin.startsWith('http') ? social_linkedin : `https://linkedin.com/company/${social_linkedin}` },
+      social_facebook && { platform: 'Facebook', handle: social_facebook, url: social_facebook.startsWith('http') ? social_facebook : `https://facebook.com/${social_facebook}` },
+      social_instagram && { platform: 'Instagram', handle: `@${social_instagram}`, url: `https://instagram.com/${social_instagram}` },
+    ].filter(Boolean) as any[];
 
-    const socials = [
-      social_twitter && `Twitter/X: @${social_twitter}`,
-      social_linkedin && `LinkedIn: ${social_linkedin}`,
-      social_facebook && `Facebook: ${social_facebook}`,
-      social_instagram && `Instagram: @${social_instagram}`,
-    ].filter(Boolean).join(', ');
+    const suggestions: any[] = [];
+    if (!social_twitter) suggestions.push({ title: 'Claim an X / Twitter handle', description: 'No X handle provided. Customer-support questions and product news flow through X first.', category: 'marketing', priority: 'medium' });
+    if (!social_linkedin) suggestions.push({ title: 'Add LinkedIn company page', description: 'B2B trust signal. Recruiters, partners and journalists check LinkedIn first.', category: 'marketing', priority: 'medium' });
+    if (!social_instagram) suggestions.push({ title: 'Add Instagram presence', description: 'Best channel for product visuals and lifestyle audiences.', category: 'content', priority: 'low' });
+    if (handles.length === 0) suggestions.push({ title: 'No social handles provided', description: 'Add at least one social handle in the form above to enable footprint tracking.', category: 'marketing', priority: 'high' });
+    if (handles.length >= 3) suggestions.push({ title: 'Set up cross-posting', description: `You have ${handles.length} active channels. Schedule with Buffer/Hootsuite/native scheduling to stay consistent without burnout.`, category: 'content', priority: 'medium' });
 
-    const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${LOVABLE_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'google/gemini-2.5-flash-lite',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert brand strategist, media analyst, and product advisor. You analyze companies across social platforms (YouTube, X, Instagram, TikTok, Facebook, LinkedIn, Reddit) and provide:
+    const analysis = {
+      sentiment: { positive: 0, neutral: 0, negative: 0 },
+      sentiment_note: 'Sentiment scoring requires real platform data. Connect each platform\'s API or upload mention exports to populate this.',
+      overall_score: handles.length === 0 ? 20 : Math.min(85, 40 + handles.length * 12),
+      complaints: [],
+      customer_groups: [],
+      key_customers: [],
+      suggestions,
+      improvements: handles.length === 0
+        ? ['Add at least one social handle to enable analysis.']
+        : [`Tracking ${handles.length} channel${handles.length === 1 ? '' : 's'}: ${handles.map(h => h.platform).join(', ')}.`],
+      sentiment_over_time: [],
+      handles,
+      source: 'deterministic',
+    };
 
-1. Deep sentiment analysis with realistic numbers
-2. Customer group segmentation with percentages
-3. Key individual customers/influencers/advocates with real-looking profiles
-4. Common complaints with mention counts and trends
-5. ACTIONABLE SUGGESTIONS — this is the MOST IMPORTANT part:
-   - What features to add to their product
-   - What content to create
-   - What UX to improve
-   - What messaging to fix
-   - Specific marketing campaigns to run
-   - Competitor gaps to exploit
-
-Each suggestion should be specific, actionable, and linked to a real complaint or opportunity.
-Example suggestions:
-- "Add an onboarding tutorial — 23% of complaints mention confusion on first use"
-- "Improve pricing page clarity — negative sentiment around hidden costs is rising"
-- "Create video content for TikTok — your 18-25 demographic is underserved"
-
-For key_customers, generate realistic-looking profiles with names, titles, companies. Use LinkedIn-style professional photo URLs from ui-avatars.com.`
-          },
-          {
-            role: 'user',
-            content: `Analyze the full media footprint for: ${company_name}${socials ? `\nSocial handles: ${socials}` : ''}
-
-Provide comprehensive analysis across YouTube, X, Instagram, TikTok, Facebook, LinkedIn, and Reddit. Include 8-12 actionable suggestions that connect media sentiment to product improvements.`
-          }
-        ],
-        tools: [{
-          type: 'function',
-          function: {
-            name: 'media_analysis',
-            description: 'Return structured media footprint analysis with suggestion engine',
-            parameters: {
-              type: 'object',
-              properties: {
-                sentiment: {
-                  type: 'object',
-                  properties: {
-                    positive: { type: 'integer' },
-                    neutral: { type: 'integer' },
-                    negative: { type: 'integer' }
-                  },
-                  required: ['positive', 'neutral', 'negative']
-                },
-                overall_score: { type: 'integer' },
-                complaints: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      topic: { type: 'string' },
-                      mentions: { type: 'integer' },
-                      trend: { type: 'string', enum: ['rising', 'stable', 'declining'] },
-                      platform: { type: 'string', description: 'Primary platform: YouTube, X, Instagram, TikTok, Facebook, LinkedIn, Reddit' }
-                    },
-                    required: ['topic', 'mentions', 'trend']
-                  }
-                },
-                customer_groups: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      name: { type: 'string' },
-                      description: { type: 'string' },
-                      percentage: { type: 'integer' }
-                    },
-                    required: ['name', 'description', 'percentage']
-                  }
-                },
-                key_customers: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      full_name: { type: 'string' },
-                      title: { type: 'string' },
-                      company: { type: 'string' },
-                      linkedin_url: { type: 'string' },
-                      twitter_handle: { type: 'string' },
-                      avatar_url: { type: 'string' },
-                      relevance: { type: 'string' }
-                    },
-                    required: ['full_name', 'title', 'relevance']
-                  }
-                },
-                suggestions: {
-                  type: 'array',
-                  description: 'Actionable product/content/UX/marketing suggestions linked to media insights',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      title: { type: 'string', description: 'Short actionable title' },
-                      description: { type: 'string', description: 'Detailed explanation with data backing' },
-                      category: { type: 'string', enum: ['feature', 'content', 'ux', 'messaging', 'marketing', 'competitive'] },
-                      priority: { type: 'string', enum: ['high', 'medium', 'low'] },
-                      linked_complaint: { type: 'string', description: 'Which complaint or insight this addresses' }
-                    },
-                    required: ['title', 'description', 'category', 'priority']
-                  }
-                },
-                improvements: {
-                  type: 'array',
-                  items: { type: 'string' }
-                },
-                sentiment_over_time: {
-                  type: 'array',
-                  items: {
-                    type: 'object',
-                    properties: {
-                      period: { type: 'string' },
-                      positive: { type: 'integer' },
-                      neutral: { type: 'integer' },
-                      negative: { type: 'integer' }
-                    },
-                    required: ['period', 'positive', 'neutral', 'negative']
-                  }
-                }
-              },
-              required: ['sentiment', 'overall_score', 'complaints', 'customer_groups', 'key_customers', 'suggestions', 'improvements', 'sentiment_over_time']
-            }
-          }
-        }],
-        tool_choice: { type: 'function', function: { name: 'media_analysis' } }
-      }),
-    });
-
-    if (!aiResponse.ok) {
-      if (aiResponse.status === 429) {
-        return new Response(JSON.stringify({ error: 'Rate limited, try again later' }), {
-          status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      if (aiResponse.status === 402) {
-        return new Response(JSON.stringify({ error: 'AI credits exhausted' }), {
-          status: 402, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        });
-      }
-      throw new Error(`AI gateway error: ${aiResponse.status}`);
-    }
-
-    const aiData = await aiResponse.json();
-    const toolCall = aiData.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error('No analysis returned');
-
-    const analysis = JSON.parse(toolCall.function.arguments);
-
-    const adminClient = createClient(
-      Deno.env.get('SUPABASE_URL')!,
-      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-    );
-
+    const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
     const { data: latestScan } = await adminClient
       .from('scans').select('id').eq('user_id', user.id)
       .order('created_at', { ascending: false }).limit(1).single();
-
     if (latestScan) {
       await adminClient.from('scans').update({
         media_analysis: analysis,
