@@ -420,72 +420,91 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
     const analysis = JSON.parse(toolCall.function.arguments);
 
     // ---------- Deterministic severity normalizer ----------
-    const COSMETIC_DROP = /(favicon|og:image|og image|share preview|meta description length|missing meta description|alt text on decorative)/i;
-    const COSMETIC_TITLE = /(missing footer|about page|testimonial|trusted by|social proof badge)/i;
-    const FUNCTIONAL_TITLE = /(broken|404|500|5xx|redirect loop|empty (page|body)|silently fails|does nothing|crash|hangs?|api (error|fail)|cors|spa shell|no ssr)/i;
-    const AUTH_TITLE = /(login|log[- ]?in|sign[- ]?in|sign[- ]?up|register|password|reset|forgot|oauth|sso|account access|session|authent)/i;
-    const PAYMENT_TITLE = /(checkout|payment|billing|cart|purchase|stripe|paddle)/i;
-    const JOURNEY_TITLE = /(no navigation|missing menu|cannot tell|unclear (value|product)|primary cta|dead[- ]end|mobile menu|confusing (edit|save|flow))/i;
+    // Aggressively drop crawler-limitation noise + generic SEO complaints.
+    const NOISE_DROP = /(favicon|og:image|og image|share preview|meta description|missing h1|no h1|footer (is )?missing|missing footer|testimonial|trusted by|social proof|alt text on decorative|generic cta|spa shell|no ssr|renders empty without js|page is empty|blank page|no server[- ]rendered|empty body|no content in raw html)/i;
+    const COSMETIC_TITLE = /(meta tag|seo|robots\.txt|sitemap|open graph)/i;
+    const FUNCTIONAL_TITLE = /(broken link|404|500|5xx|redirect loop|silently fails|does nothing|crash|hangs?|api (error|fail)|cors error)/i;
+    const AUTH_TITLE = /(login (broken|fails|404)|signup (broken|fails)|password reset broken|auth.* broken)/i;
+    const PAYMENT_TITLE = /(checkout broken|payment fails|billing broken|cart broken)/i;
+    const JOURNEY_TITLE = /(no navigation found|dead[- ]end|redirect loop|mobile menu broken)/i;
 
-    // Seed deterministic findings from crawl facts the AI might have skipped
+    function HIGH_VALUE(u: string) { return /\/(login|signin|signup|register|account|checkout|cart|pay|auth|contact)(\/|$|\?)/i.test(u); }
+
+    // Seed deterministic findings ONLY from hard evidence (no guessing).
     const deterministic: any[] = [];
     if (!pages.length) {
-      deterministic.push({ title: `Site unreachable: ${url}`, description: 'Crawler could not load the URL. Real users will see the same failure.', category: 'broken', priority: 'critical', impact: 'Every visitor blocked.', location: url });
+      deterministic.push({ title: `Site unreachable: ${url}`, description: 'Crawler could not load the URL. Real users will see the same failure.', category: 'broken', priority: 'critical', impact: 'Every visitor blocked.', location: url, repro_steps: `Open ${url} in a fresh browser.`, expected: 'Page loads with HTTP 200.', actual: 'Connection failed / DNS error / timeout.', user_impact: 'Nobody can reach the site.', fix_dev: 'Check DNS, hosting, SSL certificate, and origin server health.' });
     }
     for (const b of broken.slice(0, 8)) {
       deterministic.push({
-        title: `Broken link: ${b.url}`,
-        description: `Returns HTTP ${b.status || 'unreachable'}, linked from ${b.from}. A real user clicking this hits a dead end.`,
+        title: `Broken link → ${b.url}`,
+        description: `Returns HTTP ${b.status || 'unreachable'}, linked from ${b.from}.`,
         category: 'broken',
         priority: HIGH_VALUE(b.url) ? 'critical' : 'warning',
-        impact: 'User abandons or loses trust.',
+        impact: 'User hits a dead end.',
         location: b.url,
-        fix_dev: 'Remove the link, fix the destination URL, or restore the missing page.',
+        repro_steps: `On ${b.from}, click the link to ${b.url}.`,
+        expected: 'Destination loads with HTTP 200.',
+        actual: `HTTP ${b.status || 'unreachable / network error'}.`,
+        user_impact: 'User abandons or loses trust.',
+        fix_dev: 'Fix the destination URL, restore the page, or remove the link.',
       });
     }
-    if (pages.length && !pages.some(p => /login|signin|signup|register|auth/i.test(p.url) || p.ev.forms.some(f => f.isAuth))) {
-      const hasAccountUI = pages.some(p => /dashboard|account|profile|settings|app\./i.test(p.url));
-      if (hasAccountUI) {
-        deterministic.push({ title: 'No login or signup page found despite account UI', description: 'The crawl found account/dashboard/settings pages but no reachable login or signup. Returning users have no entry point.', category: 'auth', priority: 'critical', impact: 'Returning users cannot log in.', location: url, fix_dev: 'Expose /login and /signup with public, crawlable URLs.' });
-      }
-    }
-    for (const p of pages) {
-      if (p.ev.isSpaShell) {
-        deterministic.push({ title: `Page renders empty without JS: ${p.url}`, description: 'The page is a JS-only SPA shell with no server-rendered content. Search engines, link previews, screen readers, and slow connections see nothing.', category: 'performance', priority: 'critical', impact: 'Lost SEO + accessibility + first-paint users.', location: p.url, fix_dev: 'Add SSR / pre-rendering or render meaningful HTML before hydration.' });
-      }
-    }
+    // Auth form with no labels — only when an auth form was ACTUALLY seen in raw HTML.
     for (const p of pages) {
       for (const f of p.ev.forms) {
         if (f.isAuth && !f.hasLabels) {
-          deterministic.push({ title: `Auth form on ${p.url} has no <label> elements`, description: 'Login/signup form fields have no labels. Screen readers, password managers, and accessibility tools struggle.', category: 'auth', priority: 'critical', impact: 'Users with assistive tech blocked from signing in.', location: p.url, fix_dev: 'Wrap each input in <label> or add for/id pairing.' });
+          deterministic.push({ title: `Auth form on ${p.url} has no <label> elements`, description: 'A login/signup form was found in raw HTML with no <label>s. Screen readers and password managers struggle.', category: 'accessibility', priority: 'warning', impact: 'Assistive-tech users struggle to sign in.', location: p.url, repro_steps: `Open ${p.url} with a screen reader and Tab through the form.`, expected: 'Each field announces its label.', actual: 'Fields announce nothing.', user_impact: 'Users on screen readers cannot reliably complete sign-in.', fix_dev: 'Wrap each input in <label> or add matching for/id.' });
         }
       }
     }
-
-    function HIGH_VALUE(u: string) { return /\/(login|signin|signup|register|account|checkout|cart|pay|auth|contact)(\/|$|\?)/i.test(u); }
+    // SPA / SSR — ONE single low-priority note for the whole site (never per page, never critical).
+    if (isSpaApp) {
+      deterministic.push({
+        title: 'Site renders content via JavaScript (no server-side HTML)',
+        description: `The site is a JavaScript-rendered app. This is normal for React/Vite/Next-client apps, but it limits SEO crawlers and link-preview bots. NOTE: this also means ProjectBond's HTML crawler could NOT verify the in-app UI, login flow, or authenticated areas — those need to be tested in a real browser.`,
+        category: 'performance',
+        priority: 'low',
+        impact: 'SEO and link previews may not see content. Crawler coverage is limited.',
+        location: url,
+        repro_steps: 'View page source on the homepage and compare to what renders in a browser.',
+        expected: 'Key content visible in the initial HTML.',
+        actual: 'Initial HTML is mostly an empty shell + script tags.',
+        user_impact: 'Real users see the app fine; search engines / crawlers may not.',
+        fix_dev: 'Consider SSR / pre-rendering (Next.js, Astro, React Router SSR) for marketing pages if SEO matters.',
+      });
+    }
 
     if (!Array.isArray(analysis.issues)) analysis.issues = [];
     analysis.issues.push(...deterministic);
 
-    // Dedupe by lowercased title
-    const seenTitle = new Set<string>();
+    // Drop crawler-limitation noise + cosmetic complaints
     analysis.issues = analysis.issues.filter((it: any) => {
-      const k = String(it.title || '').toLowerCase().trim();
-      if (!k || seenTitle.has(k)) return false;
-      seenTitle.add(k);
+      const blob = `${it.title || ''} ${it.description || ''}`;
+      if (NOISE_DROP.test(blob) && !/broken link|http (4|5)\d\d|redirect loop/i.test(blob)) {
+        // exception: keep our own single SPA note
+        return /renders content via javascript/i.test(it.title || '');
+      }
       return true;
     });
 
-    // Drop cosmetic
-    analysis.issues = analysis.issues.filter((it: any) => !COSMETIC_DROP.test(`${it.title || ''} ${it.description || ''}`));
+    // Dedupe by title AND by category+location signature (so 10 "empty page" findings collapse)
+    const seenKey = new Set<string>();
+    analysis.issues = analysis.issues.filter((it: any) => {
+      const title = String(it.title || '').toLowerCase().trim();
+      const sig = `${(it.category || '').toLowerCase()}|${String(it.location || '').toLowerCase().trim()}|${title.slice(0, 40)}`;
+      if (!title || seenKey.has(title) || seenKey.has(sig)) return false;
+      seenKey.add(title);
+      seenKey.add(sig);
+      return true;
+    });
 
-    // Enforce severity walls
+    // Enforce severity walls (much narrower now — only escalate on REAL evidence patterns)
     for (const it of analysis.issues) {
       const t = `${it.title || ''} ${it.description || ''}`;
+      if (FUNCTIONAL_TITLE.test(t) && it.priority !== 'critical') it.priority = it.category === 'broken' ? 'critical' : 'warning';
       if (AUTH_TITLE.test(t) || PAYMENT_TITLE.test(t)) it.priority = 'critical';
-      else if (FUNCTIONAL_TITLE.test(t) && it.priority !== 'critical') it.priority = 'critical';
-      else if (JOURNEY_TITLE.test(t) && it.priority === 'low') it.priority = 'warning';
-      else if (COSMETIC_TITLE.test(t)) it.priority = 'low';
+      if (COSMETIC_TITLE.test(t)) it.priority = 'low';
       if (it.category === 'broken' && it.priority === 'low') it.priority = 'warning';
     }
 
