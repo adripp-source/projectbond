@@ -297,28 +297,49 @@ serve(async (req) => {
       return await persistAndReturn(adminClient, user.id, url, scan_id, company_name, analysis);
     }
 
-    const origin = new URL(home.finalUrl).origin;
-    const followed = new Set<string>([home.finalUrl]);
+    const origin = new URL(homeForExtract.finalUrl).origin;
+    const followed = new Set<string>([homeForExtract.finalUrl]);
     const queue: { href: string; from: string }[] = [];
     const HIGH_VALUE_RE = /\/(login|signin|sign-in|signup|sign-up|register|account|checkout|cart|billing|payment|pay|auth|contact|support|help|reset|forgot|password|dashboard|profile|settings)(\/|$|\?)/i;
     const prioritize = () => queue.sort((a, b) => (HIGH_VALUE_RE.test(b.href) ? 1 : 0) - (HIGH_VALUE_RE.test(a.href) ? 1 : 0));
 
+    // Pull URLs from sitemap variants and robots.txt
     try {
-      const sm = await safeFetchHtml(new URL('/sitemap.xml', origin).toString());
-      if (sm && sm.status < 400) {
-        const locs = [...sm.html.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(m => m[1]).slice(0, 200);
-        for (const u of locs) if (u.startsWith(origin) && !followed.has(u)) queue.push({ href: u, from: 'sitemap.xml' });
+      for (const smPath of ['/sitemap.xml', '/sitemap_index.xml', '/sitemap-index.xml', '/wp-sitemap.xml']) {
+        const sm = await safeFetchHtml(new URL(smPath, origin).toString());
+        if (sm && sm.status < 400) {
+          const locs = [...sm.html.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(m => m[1]).slice(0, 200);
+          for (const u of locs) if (u.startsWith(origin) && !followed.has(u)) queue.push({ href: u, from: smPath });
+        }
+      }
+      const robots = await safeFetchHtml(new URL('/robots.txt', origin).toString());
+      if (robots && robots.status < 400) {
+        for (const m of robots.html.matchAll(/Sitemap:\s*(\S+)/gi)) {
+          const sm = await safeFetchHtml(m[1]);
+          if (sm && sm.status < 400) {
+            const locs = [...sm.html.matchAll(/<loc>\s*([^<\s]+)\s*<\/loc>/gi)].map(x => x[1]).slice(0, 200);
+            for (const u of locs) if (u.startsWith(origin) && !followed.has(u)) queue.push({ href: u, from: 'robots.txt' });
+          }
+        }
       }
     } catch { /* ignore */ }
 
-    for (const p of ['/login', '/signin', '/signup', '/register', '/account', '/contact', '/pricing', '/checkout', '/about']) {
+    // Expanded probe list — common SPA routes crawlers often miss.
+    const PROBE_PATHS = [
+      '/login', '/signin', '/sign-in', '/log-in', '/signup', '/sign-up', '/register', '/join',
+      '/account', '/profile', '/settings', '/dashboard', '/app', '/home',
+      '/contact', '/pricing', '/plans', '/checkout', '/cart', '/billing', '/payment',
+      '/about', '/help', '/support', '/faq', '/docs', '/blog',
+      '/forgot-password', '/reset-password', '/terms', '/privacy',
+    ];
+    for (const p of PROBE_PATHS) {
       const u = new URL(p, origin).toString();
       if (!followed.has(u)) queue.push({ href: u, from: 'probe' });
     }
 
-    const homeEv = extractEvidence(home.html, home.finalUrl);
-    pages.push({ url: home.finalUrl, status: home.status, ms: home.ms, ev: homeEv });
-    for (const l of homeEv.links) if (!l.external && !followed.has(l.href)) queue.push({ href: l.href, from: home.finalUrl });
+    const homeEv = extractEvidence(homeForExtract.html, homeForExtract.finalUrl);
+    pages.push({ url: homeForExtract.finalUrl, status: homeForExtract.status, ms: homeForExtract.ms, ev: homeEv });
+    for (const l of homeEv.links) if (!l.external && !followed.has(l.href)) queue.push({ href: l.href, from: homeForExtract.finalUrl });
     prioritize();
 
     while (pages.length < MAX_PAGES && queue.length && Date.now() - startedAt < MAX_TIME_MS) {
