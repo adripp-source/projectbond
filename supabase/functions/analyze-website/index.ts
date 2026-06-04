@@ -574,6 +574,10 @@ Produce findings with repro_steps, expected, actual, user_impact, and a concrete
         fix_nocode: issue.fix_nocode || null,
         fix_content: issue.fix_content || null,
         fix_visual: issue.fix_visual || null,
+        expected_result: issue.expected || null,
+        actual_result: issue.actual || null,
+        reproduction_steps: issue.repro_steps ? { steps: issue.repro_steps, user_impact: issue.user_impact || null } : null,
+        source_engine: 'ai_analysis',
       }));
       const { error: issuesError } = await adminClient.from('scan_issues').insert(issueRows);
       if (issuesError) console.error('Issues insert error:', issuesError);
