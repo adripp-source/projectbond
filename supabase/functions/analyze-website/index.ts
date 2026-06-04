@@ -241,6 +241,15 @@ serve(async (req) => {
     const { url, company_name, scan_id } = await req.json();
     if (!url) return new Response(JSON.stringify({ error: 'URL is required' }), { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } });
 
+    // Classify scan target: marketing/homepage vs internal app route.
+    // App routes are judged on rendered UI/workflows, NOT on SEO metadata.
+    const APP_ROUTE_RE = /\/(analysis|dashboard|settings|reports?|action[-_]?center|actions|flow[-_]?logic|ai[-_]?tester|admin|app|account|profile|billing|inbox|console|workspace|home|onboarding|editor|branding|media|tech[-_]?docs|dev[-_]?board)(\/|$|\?|#)/i;
+    let urlPath = '/';
+    try { urlPath = new URL(url).pathname || '/'; } catch {}
+    const isAppRoute = APP_ROUTE_RE.test(urlPath);
+    const reportMode: 'marketing' | 'product' = isAppRoute ? 'product' : 'marketing';
+
+
     const adminClient = createClient(Deno.env.get('SUPABASE_URL')!, Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!);
 
     // ---------- Crawl ----------
@@ -487,8 +496,9 @@ serve(async (req) => {
       });
     }
 
-    // Missing title / description (only at homepage)
-    if (!homeEv.title) {
+    // Missing title / description — MARKETING only. Internal app routes
+    // (e.g. /analysis, /dashboard) are not graded as homepages.
+    if (reportMode === 'marketing' && !homeEv.title) {
       issues.push({
         title: 'Homepage has no <title>',
         description: 'The homepage is missing a <title> tag.',
@@ -501,7 +511,7 @@ serve(async (req) => {
         fix_dev: 'Add <title>Your Brand — Tagline</title> to the homepage <head>.',
       });
     }
-    if (!homeEv.description && !isSpaApp) {
+    if (reportMode === 'marketing' && !homeEv.description && !isSpaApp) {
       issues.push({
         title: 'Homepage missing meta description',
         description: 'No <meta name="description"> on the homepage.',
@@ -515,8 +525,9 @@ serve(async (req) => {
       });
     }
 
-    // SPA notice — one site-wide low note
-    if (isSpaApp) {
+    // SPA notice — MARKETING only. For React/Vite apps this is normal and
+    // not a product failure; reporting it on /analysis etc. is wrong.
+    if (reportMode === 'marketing' && isSpaApp) {
       issues.push({
         title: 'Site renders content via JavaScript (no server-side HTML)',
         description: 'Normal for React/Vite/Next-client apps, but it limits SEO crawlers and link-preview bots. Crawler could not verify in-app UI.',
@@ -530,6 +541,7 @@ serve(async (req) => {
         fix_dev: 'Consider SSR / pre-rendering (Next.js, Astro, React Router SSR) for marketing pages.',
       });
     }
+
 
     // ---------- Scoring (deterministic) ----------
     const sev = (p: string) => (p === 'critical' ? 18 : p === 'warning' ? 7 : 2);
@@ -564,13 +576,17 @@ serve(async (req) => {
     const securityScore = isHttps ? (issues.some(i => i.category === 'security' && i.priority === 'critical') ? 40 : 88) : 30;
     const confidence = isSpaApp ? 'low' : (pages.length >= 8 ? 'high' : 'medium');
     const summary = [
+      `Report mode: ${reportMode === 'product' ? 'PRODUCT / APP QA' : 'MARKETING / SEO'} (path: ${urlPath}).`,
       `Tested ${pages.length} page${pages.length === 1 ? '' : 's'} from ${url}.`,
       broken.length ? `Found ${broken.length} broken link${broken.length === 1 ? '' : 's'}.` : 'No broken links detected.',
       slowPages.length ? `${slowPages.length} slow page${slowPages.length === 1 ? '' : 's'} (>3s).` : '',
-      isSpaApp ? 'Site is a JavaScript app — only the HTML shell could be inspected, not the rendered UI.' : '',
+      reportMode === 'product' && isSpaApp
+        ? 'App route detected — SEO/meta findings are suppressed. HTML-only scan cannot verify in-app UI; product workflows need a logged-in browser test.'
+        : (isSpaApp ? 'Site is a JavaScript app — only the HTML shell could be inspected, not the rendered UI.' : ''),
       bypassLayersTried.length ? `Bypass system tried ${bypassLayersTried.length} layer${bypassLayersTried.length === 1 ? '' : 's'}${bypassWinner ? ` (winner: ${bypassWinner})` : ' (no layer recovered usable HTML)'}.` : '',
       `Confidence: ${confidence.toUpperCase()}.`,
     ].filter(Boolean).join(' ');
+
 
     // Lightweight brand inference (no AI): from title + description
     const brand_analysis = company_name ? {
