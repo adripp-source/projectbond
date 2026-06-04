@@ -251,7 +251,30 @@ serve(async (req) => {
     const broken: { url: string; status: number; from: string }[] = [];
 
     const home = await safeFetchHtml(url);
-    if (!home) {
+    let bypassLayersTried: string[] = [];
+    let bypassWinner: string | undefined;
+    let homeForExtract = home;
+
+    // If the home fetch is missing OR looks like an empty SPA shell, run the
+    // 50-layer bypass system to try every legal route to the rendered HTML.
+    const homeBodyLen = home ? bodyTextOf(home.html).length : 0;
+    if (!home || homeBodyLen < 200) {
+      const bypass = await multiStrategyFetch(url);
+      bypassLayersTried = bypass.tried;
+      if (bypass.best && bypass.best.html && bodyTextOf(bypass.best.html).length > homeBodyLen) {
+        bypassWinner = bypass.best.via;
+        homeForExtract = {
+          html: bypass.best.html,
+          finalUrl: home?.finalUrl || bypass.best.finalUrl || url,
+          status: home?.status || bypass.best.status || 200,
+          ms: home?.ms || bypass.best.ms || 0,
+          bytes: bypass.best.bytes,
+        };
+      }
+    }
+
+    if (!homeForExtract) {
+
       // Site unreachable — emit one finding + persist
       const analysis = {
         health_score: 5,
