@@ -138,16 +138,21 @@ const Auth = () => {
         {/* Email form */}
         <form onSubmit={handleEmailAuth} className="space-y-3">
           {!isLogin && (
-            <div className="relative">
-              <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                type="text"
-                placeholder="Full name"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="pl-10 h-11 bg-card border-border text-foreground placeholder:text-muted-foreground"
-              />
-            </div>
+            <>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                <Input
+                  type="text"
+                  placeholder="Full name"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="pl-10 h-11 bg-card border-border text-foreground placeholder:text-muted-foreground"
+                />
+              </div>
+              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-[11px] text-muted-foreground leading-snug">
+                <span className="text-primary font-medium">Tip:</span> any text feels too technical? <span className="text-foreground font-medium">Double-click it</span> (tap twice on mobile) to rewrite it in plain English. Double-click again to switch back.
+              </div>
+            </>
           )}
 
           <div className="relative">
