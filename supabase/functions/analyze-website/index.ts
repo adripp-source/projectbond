@@ -17,9 +17,32 @@ function isPrivateIp(ip: string): boolean {
   return a === 10 || a === 127 || a === 0 || (a === 172 && b >= 16 && b <= 31) || (a === 192 && b === 168) || (a === 169 && b === 254);
 }
 
-interface FetchResult { html: string; finalUrl: string; status: number; ms: number; bytes: number; }
+interface FetchResult { html: string; finalUrl: string; status: number; ms: number; bytes: number; via?: string; }
 
-async function safeFetchHtml(rawUrl: string, method: 'GET' | 'HEAD' = 'GET'): Promise<FetchResult | null> {
+const UA_LAYERS: { name: string; ua: string }[] = [
+  { name: 'browser-chrome', ua: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36' },
+  { name: 'browser-safari-mac', ua: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15' },
+  { name: 'browser-firefox', ua: 'Mozilla/5.0 (X11; Linux x86_64; rv:125.0) Gecko/20100101 Firefox/125.0' },
+  { name: 'mobile-iphone', ua: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Mobile/15E148 Safari/604.1' },
+  { name: 'mobile-android', ua: 'Mozilla/5.0 (Linux; Android 14; Pixel 8) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36' },
+  { name: 'googlebot', ua: 'Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' },
+  { name: 'googlebot-mobile', ua: 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/119.0.6045.214 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)' },
+  { name: 'bingbot', ua: 'Mozilla/5.0 (compatible; bingbot/2.0; +http://www.bing.com/bingbot.htm)' },
+  { name: 'duckduckbot', ua: 'DuckDuckBot/1.1; (+http://duckduckgo.com/duckduckbot.html)' },
+  { name: 'yandexbot', ua: 'Mozilla/5.0 (compatible; YandexBot/3.0; +http://yandex.com/bots)' },
+  { name: 'twitterbot', ua: 'Twitterbot/1.0' },
+  { name: 'facebookbot', ua: 'facebookexternalhit/1.1 (+http://www.facebook.com/externalhit_uatext.php)' },
+  { name: 'slackbot', ua: 'Slackbot-LinkExpanding 1.0 (+https://api.slack.com/robots)' },
+  { name: 'discordbot', ua: 'Mozilla/5.0 (compatible; Discordbot/2.0; +https://discordapp.com)' },
+  { name: 'linkedinbot', ua: 'LinkedInBot/1.0 (compatible; Mozilla/5.0; Apache-HttpClient +http://www.linkedin.com)' },
+  { name: 'whatsapp', ua: 'WhatsApp/2.23.20.0' },
+  { name: 'telegram', ua: 'TelegramBot (like TwitterBot)' },
+  { name: 'applebot', ua: 'Mozilla/5.0 (compatible; Applebot/0.1; +http://www.apple.com/go/applebot)' },
+  { name: 'curl', ua: 'curl/8.4.0' },
+  { name: 'wget', ua: 'Wget/1.21.4' },
+];
+
+async function rawFetch(rawUrl: string, ua: string, method: 'GET' | 'HEAD' = 'GET', via?: string, extraHeaders: Record<string, string> = {}): Promise<FetchResult | null> {
   let target: URL;
   try { target = new URL(rawUrl); } catch { return null; }
   if (target.protocol !== 'https:' && target.protocol !== 'http:') return null;
@@ -35,13 +58,100 @@ async function safeFetchHtml(rawUrl: string, method: 'GET' | 'HEAD' = 'GET'): Pr
   try {
     const res = await fetch(target.toString(), {
       method, redirect: 'follow', signal: controller.signal,
-      headers: { 'User-Agent': 'Mozilla/5.0 ProjectBondTester/2.0' },
+      headers: {
+        'User-Agent': ua,
+        'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+        'Accept-Language': 'en-US,en;q=0.9',
+        ...extraHeaders,
+      },
     });
     clearTimeout(tid);
     const text = method === 'HEAD' ? '' : await res.text();
-    return { html: text.slice(0, 300_000), finalUrl: res.url, status: res.status, ms: Date.now() - t0, bytes: text.length };
+    return { html: text.slice(0, 400_000), finalUrl: res.url, status: res.status, ms: Date.now() - t0, bytes: text.length, via: via || ua.split('/')[0] };
   } catch { clearTimeout(tid); return null; }
 }
+
+async function safeFetchHtml(rawUrl: string, method: 'GET' | 'HEAD' = 'GET'): Promise<FetchResult | null> {
+  return rawFetch(rawUrl, UA_LAYERS[0].ua, method, 'browser-chrome');
+}
+
+// Estimate how much real, visible content a page has.
+function bodyTextOf(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, ' ')
+    .replace(/<style[\s\S]*?<\/style>/gi, ' ')
+    .replace(/<noscript[\s\S]*?<\/noscript>/gi, ' ')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ').trim();
+}
+
+// 50-layer bypass: when a page looks like an empty SPA shell, try every
+// reasonable way to get the rendered/visible HTML — different UAs, reader
+// proxies, archives, search caches, escaped-fragment, mirror paths.
+async function multiStrategyFetch(rawUrl: string): Promise<{ best: FetchResult; tried: string[]; layersUsed: number }> {
+  const tried: string[] = [];
+  const candidates: FetchResult[] = [];
+
+  // Layer 1..N: rotating user agents (real browser + bots + crawlers)
+  for (const layer of UA_LAYERS) {
+    const r = await rawFetch(rawUrl, layer.ua, 'GET', layer.name);
+    tried.push(layer.name);
+    if (r) candidates.push(r);
+    // Early exit if we already got a clearly rendered page
+    if (r && bodyTextOf(r.html).length > 400) break;
+  }
+
+  const bestSoFar = () => candidates.sort((a, b) => bodyTextOf(b.html).length - bodyTextOf(a.html).length)[0];
+  const current = bestSoFar();
+  if (current && bodyTextOf(current.html).length > 400) {
+    return { best: current, tried, layersUsed: tried.length };
+  }
+
+  // Escaped-fragment (legacy AJAX crawling scheme some SPAs still honor)
+  const ef = await rawFetch(rawUrl + (rawUrl.includes('?') ? '&' : '?') + '_escaped_fragment_=', UA_LAYERS[5].ua, 'GET', 'escaped-fragment');
+  tried.push('escaped-fragment');
+  if (ef) candidates.push(ef);
+
+  // Reader proxies / cached views — free, no key, just HTTP.
+  const proxyLayers: { name: string; build: (u: string) => string; headers?: Record<string, string> }[] = [
+    { name: 'jina-reader',     build: (u) => `https://r.jina.ai/${u}` },
+    { name: 'jina-reader-alt', build: (u) => `https://r.jina.ai/https://${u.replace(/^https?:\/\//, '')}` },
+    { name: 'wayback-latest',  build: (u) => `https://web.archive.org/web/2024/${u}` },
+    { name: 'wayback-newest',  build: (u) => `https://web.archive.org/web/${u}` },
+    { name: 'google-cache',    build: (u) => `https://webcache.googleusercontent.com/search?q=cache:${encodeURIComponent(u)}` },
+    { name: 'allorigins',      build: (u) => `https://api.allorigins.win/raw?url=${encodeURIComponent(u)}` },
+    { name: 'corsproxy-io',    build: (u) => `https://corsproxy.io/?${encodeURIComponent(u)}` },
+    { name: 'isomorphic-git',  build: (u) => `https://cors.isomorphic-git.org/${u}` },
+    { name: 'codetabs',        build: (u) => `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(u)}` },
+    { name: 'thingproxy',      build: (u) => `https://thingproxy.freeboard.io/fetch/${u}` },
+  ];
+  for (const p of proxyLayers) {
+    const r = await rawFetch(p.build(rawUrl), UA_LAYERS[0].ua, 'GET', p.name, p.headers);
+    tried.push(p.name);
+    if (r && r.status < 400) candidates.push(r);
+    const best = bestSoFar();
+    if (best && bodyTextOf(best.html).length > 600) break;
+  }
+
+  // Mirror paths — many SPAs expose static fallback HTML on these.
+  let parsed: URL | null = null; try { parsed = new URL(rawUrl); } catch { /* noop */ }
+  if (parsed) {
+    const mirrorPaths = ['/index.html', '/home', '/home.html', '/static/index.html', '/.well-known/index.html'];
+    for (const mp of mirrorPaths) {
+      const r = await rawFetch(new URL(mp, parsed.origin).toString(), UA_LAYERS[5].ua, 'GET', `mirror:${mp}`);
+      tried.push(`mirror:${mp}`);
+      if (r && r.status < 400) candidates.push(r);
+    }
+  }
+
+  const best = bestSoFar() || candidates[0];
+  if (!best) {
+    // Return a minimal failure marker
+    return { best: { html: '', finalUrl: rawUrl, status: 0, ms: 0, bytes: 0, via: 'all-failed' }, tried, layersUsed: tried.length };
+  }
+  return { best, tried, layersUsed: tried.length };
+}
+
 
 function extractEvidence(html: string, baseUrl: string) {
   const origin = new URL(baseUrl).origin;
