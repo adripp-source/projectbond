@@ -235,26 +235,33 @@ serve(async (req) => {
 
     // ---------- Build evidence summary ----------
     const slowPages = pages.filter(p => p.ms > 3000).map(p => `${p.url} (${p.ms}ms)`);
-    const emptyPages = pages.filter(p => p.ev.looksEmpty || p.ev.isSpaShell).map(p => `${p.url}${p.ev.isSpaShell ? ' (SPA shell, no SSR)' : ' (empty body)'}`);
+    const emptyPages = pages.filter(p => p.ev.looksEmpty || p.ev.isSpaShell);
     const authPages = pages.filter(p => /login|signin|signup|register|account|auth|password/i.test(p.url) || p.ev.forms.some(f => f.isAuth));
     const formPages = pages.filter(p => p.ev.forms.length > 0);
+
+    // SPA detection: if most pages look empty AND have a root/app mount + scripts, this is an SPA.
+    // The raw-HTML crawler cannot see the rendered app — treat as LOW CONFIDENCE, not "broken".
+    const spaShellRatio = pages.length ? emptyPages.length / pages.length : 0;
+    const isSpaApp = pages.length > 0 && spaShellRatio >= 0.5 && pages.some(p => p.ev.scriptTags >= 1);
+    const lowConfidence = isSpaApp || pages.length <= 2;
+    const confidenceNote = isSpaApp
+      ? `\n\n⚠ SPA DETECTED: ${emptyPages.length}/${pages.length} pages render their content via JavaScript. The raw-HTML crawler cannot see the rendered app, so it could NOT verify the real product UI, login flow, or authenticated areas. This is a CRAWLER LIMITATION, not a product defect. Coverage is INCOMPLETE and confidence is LOW. Do NOT flag pages as "empty" or "broken" on that basis — at most note SSR/SEO once across the whole site.`
+      : '';
 
     const evidenceSummary = pages.length
       ? pages.slice(0, 25).map(p => `URL: ${p.url} (HTTP ${p.status}, ${p.ms}ms, ${p.ev.totalBytes}b)
 Title: ${p.ev.title || '(MISSING)'}
 H1 count: ${p.ev.h1Count} | Headings: ${p.ev.headings.slice(0, 6).map(h => `${h.tag}:"${h.text}"`).join(' | ')}
-CTAs (${p.ev.ctas.length}): ${p.ev.ctas.slice(0, 12).join(' | ') || '(NONE)'}
-Forms: ${p.ev.forms.map(f => `[${f.method.toUpperCase()} action=${f.action} fields=${f.fields.join(',')} labels=${f.hasLabels} isAuth=${f.isAuth}]`).join(' ') || 'none'}
-Nav: ${p.ev.navText ? 'yes' : 'NO'} | Footer: ${p.ev.footerText ? 'yes' : 'NO'}
-Empty body: ${p.ev.looksEmpty} | SPA shell (no SSR): ${p.ev.isSpaShell} | Console errors in HTML: ${p.ev.hasConsoleError}
-Scripts: ${p.ev.scriptTags} (${p.ev.inlineScripts} inline) | CSS: ${p.ev.cssTags}
-First impression: ${p.ev.bodyText.slice(0, 400)}`).join('\n\n---\n\n')
+CTAs in raw HTML (${p.ev.ctas.length}): ${p.ev.ctas.slice(0, 12).join(' | ') || '(none in raw HTML — may be JS-rendered)'}
+Forms in raw HTML: ${p.ev.forms.map(f => `[${f.method.toUpperCase()} action=${f.action} fields=${f.fields.join(',')} labels=${f.hasLabels} isAuth=${f.isAuth}]`).join(' ') || 'none in raw HTML'}
+Raw-HTML empty: ${p.ev.looksEmpty} | SPA shell: ${p.ev.isSpaShell} | JS error tokens: ${p.ev.hasConsoleError}
+Scripts: ${p.ev.scriptTags} | CSS: ${p.ev.cssTags}`).join('\n\n---\n\n')
       : crawlNote;
 
     const brokenBlock = broken.length
       ? `\n\nBROKEN / DEAD LINKS (${broken.length} total — each is a real finding):\n${broken.slice(0, 25).map(b => `- ${b.url} → HTTP ${b.status || 'unreachable'} (from ${b.from})`).join('\n')}`
       : '';
-    const summaryStats = `\n\nCRAWL STATS:\n- Pages crawled: ${pages.length}\n- Broken links: ${broken.length}\n- Slow pages (>3s): ${slowPages.length}${slowPages.length ? '\n  ' + slowPages.slice(0, 5).join('\n  ') : ''}\n- Empty/SPA-shell pages (no SSR content): ${emptyPages.length}${emptyPages.length ? '\n  ' + emptyPages.slice(0, 5).join('\n  ') : ''}\n- Auth pages found: ${authPages.length}${authPages.length ? '\n  ' + authPages.map(p => p.url).slice(0, 5).join('\n  ') : ' — NO LOGIN/SIGNUP FOUND. If product needs accounts, this is critical.'}\n- Pages with forms: ${formPages.length}`;
+    const summaryStats = `\n\nCRAWL STATS:\n- Pages crawled: ${pages.length}\n- Broken links: ${broken.length}\n- Slow pages (>3s): ${slowPages.length}${slowPages.length ? '\n  ' + slowPages.slice(0, 5).join('\n  ') : ''}\n- SPA-shell pages (JS-rendered, crawler cannot see UI): ${emptyPages.length}\n- Auth pages found in raw HTML: ${authPages.length}${authPages.length ? '\n  ' + authPages.map(p => p.url).slice(0, 5).join('\n  ') : ''}\n- Pages with raw-HTML forms: ${formPages.length}${confidenceNote}`;
 
     // ---------- AI call ----------
     const aiResponse = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
